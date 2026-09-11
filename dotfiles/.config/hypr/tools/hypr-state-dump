@@ -8,16 +8,32 @@ OUT="/home/linards/linux-debug/hypr-migration/state/$LABEL"
 mkdir -p "$OUT"
 
 # Options this configuration actually sets. Keep in sync with the config.
+# Re-derived (fix round 1) by reading every file hyprland.conf sources —
+# conf/keyboard.conf, conf/windows/default.conf, conf/decorations/default.conf,
+# conf/layouts/default.conf, conf/misc.conf, conf/animations/default.conf,
+# conf/ml4w.conf and conf/custom.conf — rather than trusting the original,
+# unverified "derived from custom.conf/misc.conf/decorations/layouts" claim.
 OPTIONS=(
   general:gaps_in general:gaps_out general:border_size general:layout
-  general:resize_on_border
-  input:left_handed input:kb_layout input:kb_variant input:follow_mouse
+  general:resize_on_border general:col.active_border general:col.inactive_border
+  input:left_handed input:kb_layout input:kb_variant input:kb_model input:kb_options
+  input:numlock_by_default input:follow_mouse input:mouse_refocus
   input:sensitivity
+  input:touchpad:natural_scroll input:touchpad:scroll_factor
+  input:touchpad:disable_while_typing
   decoration:rounding decoration:active_opacity decoration:inactive_opacity
+  decoration:fullscreen_opacity
+  decoration:blur:enabled decoration:blur:size decoration:blur:passes
+  decoration:blur:new_optimizations decoration:blur:ignore_opacity decoration:blur:xray
+  decoration:shadow:enabled decoration:shadow:range decoration:shadow:render_power
+  decoration:shadow:color
   misc:disable_hyprland_logo misc:disable_splash_rendering
   misc:initial_workspace_tracking
   debug:vfr
   dwindle:preserve_split
+  binds:workspace_back_and_forth binds:allow_workspace_cycles binds:pass_mouse_when_bound
+  animations:enabled
+  xwayland:force_zero_scaling
 )
 
 for c in binds monitors workspacerules devices version; do
@@ -25,15 +41,32 @@ for c in binds monitors workspacerules devices version; do
 done
 
 # monitors.json carries volatile fields; strip them so diffs mean something.
-jq -S 'map(del(.id, .activelyTearing, .currentFormat, .availableModes, .dpmsStatus))' \
+# id/activelyTearing/currentFormat/availableModes/dpmsStatus were the original set.
+# Fix round 1: proven volatile by running this twice minutes apart in one session —
+# tearingBlockedBy changed shape between runs — and activeWorkspace/focused/
+# specialWorkspace/hardwareCursorsInUse/directScanoutBlockedBy/directScanoutTo/
+# solitary/solitaryBlockedBy are the same class of live render/navigation state
+# (not monitor configuration), so they are stripped too. Kept: name, description,
+# make/model/serial, width/height/refreshRate/x/y/scale/transform/vrr/disabled/
+# mirrorOf and the like — those describe configuration, not live state.
+jq -S 'map(del(.id, .activelyTearing, .currentFormat, .availableModes, .dpmsStatus,
+             .activeWorkspace, .focused, .specialWorkspace, .hardwareCursorsInUse,
+             .directScanoutBlockedBy, .directScanoutTo, .solitary, .solitaryBlockedBy,
+             .tearingBlockedBy))' \
    "$OUT/monitors.json" > "$OUT/monitors.tmp" && mv "$OUT/monitors.tmp" "$OUT/monitors.json"
 
 # binds.json: addresses are per-session, drop them.
-jq -S 'map(del(.address))' "$OUT/binds.json" > "$OUT/binds.tmp" 2>/dev/null \
-   && mv "$OUT/binds.tmp" "$OUT/binds.json" || true
+# Fix round 1: the previous `2>/dev/null ... || true` guard masked real jq failures
+# (bad filter, corrupt input) while protecting against a failure that can't happen
+# (`del` on an absent key is a no-op). Fail loudly like the other two transforms.
+jq -S 'map(del(.address))' "$OUT/binds.json" > "$OUT/binds.tmp" \
+   && mv "$OUT/binds.tmp" "$OUT/binds.json"
 
-# devices.json: hardware addresses are per-session.
-jq -S 'walk(if type == "object" then del(.address) else . end)' \
+# devices.json: hardware addresses are per-session; capsLock/numLock are LED state
+# a suspend/resume can flip, and `main` is arbitration among many keyboard-class
+# devices — none of these describe configuration, so all are stripped (fix round 1
+# added capsLock, numLock, main to the original address-only strip).
+jq -S 'walk(if type == "object" then del(.address, .capsLock, .numLock, .main) else . end)' \
    "$OUT/devices.json" > "$OUT/devices.tmp" && mv "$OUT/devices.tmp" "$OUT/devices.json"
 
 # One object mapping option name -> value.
