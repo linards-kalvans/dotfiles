@@ -13,6 +13,10 @@ TARGET="main.lua"
 die() { echo "hypr-config-mode: $*" >&2; exit 1; }
 
 current_session() {
+    # Prints two lines: the resolved value (lua|conf|unknown), then a
+    # one-line reason (empty unless the value is "unknown"). Callers should
+    # capture both, e.g. with `mapfile`.
+    #
     # Preferred: ask hyprctl directly, in case a future Hyprland version
     # exposes the loaded config path here.
     #
@@ -27,27 +31,54 @@ current_session() {
     #   DEBUG ]: Using config: /path/to/hyprland.{conf,lua}
     # Read it from the CURRENTLY RUNNING instance's log, identified via
     # $HYPRLAND_INSTANCE_SIGNATURE — the standard env var Hyprland sets
-    # naming its own runtime directory — falling back to `hyprctl -j
-    # instances` if that variable is unset in this shell. This is a direct
-    # self-report from Hyprland, not an inference from timestamps (comparing
-    # process start time to the symlink's mtime is NOT used here — it cannot
-    # distinguish "loaded lua at boot" from "conf existed all along").
+    # naming its own runtime directory. This is a direct self-report from
+    # Hyprland, not an inference from timestamps (comparing process start
+    # time to the symlink's mtime is NOT used here — it cannot distinguish
+    # "loaded lua at boot" from "conf existed all along").
     local cfg
     cfg=$(hyprctl -j version 2>/dev/null | jq -r '.["config-file"] // empty' 2>/dev/null || true)
 
+    local reason=""
     if [[ -z "$cfg" ]]; then
         local sig="${HYPRLAND_INSTANCE_SIGNATURE:-}"
-        [[ -n "$sig" ]] || sig=$(hyprctl -j instances 2>/dev/null | jq -r '.[0].instance // empty' 2>/dev/null || true)
-        local runtime="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-        local log="$runtime/hypr/$sig/hyprland.log"
-        if [[ -n "$sig" && -r "$log" ]]; then
-            cfg=$(grep -a 'Using config:' "$log" 2>/dev/null | tail -1 | sed -E 's/.*Using config: *//')
+        if [[ -z "$sig" ]]; then
+            # $HYPRLAND_INSTANCE_SIGNATURE is unset — e.g. a bare TTY after a
+            # failed restart, precisely the moment this must not lie. If
+            # exactly one Hyprland instance is running, there is no
+            # ambiguity and it is safe to use it. If more than one instance
+            # is running, we have no way from this shell to know which one
+            # the caller means — do NOT guess `.[0]`; report unknown with a
+            # reason instead.
+            local count
+            count=$(hyprctl -j instances 2>/dev/null | jq -r 'length' 2>/dev/null || true)
+            [[ "$count" =~ ^[0-9]+$ ]] || count=0
+            if [[ "$count" -eq 1 ]]; then
+                sig=$(hyprctl -j instances 2>/dev/null | jq -r '.[0].instance // empty' 2>/dev/null || true)
+            elif [[ "$count" -gt 1 ]]; then
+                reason="\$HYPRLAND_INSTANCE_SIGNATURE is unset and $count Hyprland instances are running — cannot tell which one this shell belongs to"
+            fi
+        fi
+
+        if [[ -n "$sig" ]]; then
+            local runtime="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+            local log="$runtime/hypr/$sig/hyprland.log"
+            if [[ -r "$log" ]]; then
+                cfg=$(grep -a 'Using config:' "$log" 2>/dev/null | tail -1 | sed -E 's/.*Using config: *//')
+            fi
         fi
     fi
 
-    if [[ -z "$cfg" ]]; then echo "unknown"
-    elif [[ "$cfg" == *.lua ]]; then echo "lua"
-    else echo "conf"; fi
+    if [[ -z "$cfg" ]]; then
+        [[ -n "$reason" ]] || reason="hyprctl exposes no config-file field, and no readable hyprland.log with a 'Using config:' line was found"
+        echo "unknown"
+        echo "$reason"
+    elif [[ "$cfg" == *.lua ]]; then
+        echo "lua"
+        echo ""
+    else
+        echo "conf"
+        echo ""
+    fi
 }
 
 next_startup() {
@@ -72,11 +103,13 @@ case "${1:-status}" in
     ;;
   status)
     ns=$(next_startup)
-    cs=$(current_session)
+    mapfile -t cs_out < <(current_session)
+    cs="${cs_out[0]:-unknown}"
+    cs_reason="${cs_out[1]:-}"
     echo "next-startup: $ns"
     echo "current-session: $cs"
     if [[ "$cs" == "unknown" ]]; then
-        echo "note: current-session could not be determined — hyprctl exposes no config-file field, and no readable hyprland.log with a 'Using config:' line was found"
+        echo "note: current-session could not be determined — $cs_reason"
     elif [[ "$ns" != "$cs" ]]; then
         echo "note: the pending config differs from what is currently loaded — restart Hyprland to apply it"
     fi
