@@ -122,6 +122,38 @@ def count_lua(files):
             c[kind] += len(re.findall(rx, src))
     return c
 
+# hyprland.conf declares `$color8 = $primary` and `$color11 = $on_surface`, and 13
+# files under conf/windows/ consume them. The converter never walks hyprland.conf,
+# so it emits BARE GLOBALS -- e.g.
+#     active_border = color8 .. " " .. on_primary .. " 90deg"
+# -- which are nil at runtime. It reports 100% coverage and exit 0 on those files,
+# so nothing else in the toolchain catches it; the failure lands at Hyprland
+# startup as a nil border or a gradient-parse error. Two distinct defects:
+#   1. a bare alias identifier that was never rewritten to the colors.* form
+#   2. a concat chain where Hyprland wants a gradient TABLE
+#      ({ colors = {...}, angle = ... }), so naive name substitution is not enough
+ALIAS_IDENTS = ("color8", "color11", "on_primary", "on_surface", "primary")
+
+def check_colour_contract(lua_paths):
+    bare, concat = [], []
+    for f in lua_paths:
+        src = open(f, errors="replace").read()
+        src = re.sub(r"--\[\[.*?\]\]", "", src, flags=re.S)
+        src = re.sub(r"^\s*--.*$", "", src, flags=re.M)
+        for i, line in enumerate(src.splitlines(), 1):
+            for ident in ALIAS_IDENTS:
+                # A table KEY (`color8 = "primary"`) is a declaration, not a use --
+                # that is exactly how toplevel.lua documents the contract.
+                if re.match(r"\s*" + ident + r"\s*=\s*[\"']", line):
+                    continue
+                # bare identifier, not reached through a table (colors.X / M.X / .X)
+                if re.search(r"(?<![.\w\"'])" + ident + r"\b", line):
+                    bare.append((f, i, ident, line.strip()[:72]))
+                    break
+            if re.search(r"(active_border|inactive_border)\s*=.*\.\.", line):
+                concat.append((f, i, line.strip()[:72]))
+    return bare, concat
+
 def main():
     conf_files = closure(os.path.join(H, "hyprland.conf"))
     lfiles = lua_files()
@@ -170,9 +202,25 @@ def main():
             print(f"{'':<18}{'':>21}   {DROPPED[k]}")
         if n:
             print(f"{'':<18}{'':>21}   note: {n}")
+    bare, concat = check_colour_contract(lfiles)
     print()
-    print("AUDIT PASS — every directive kind reconciles" if ok
-          else "AUDIT FAIL — see MISSING/UNEXPECTED rows above")
+    print("colour-alias contract")
+    print("-" * 62)
+    if not bare and not concat:
+        print("  ok — no bare alias identifiers, no border concat chains")
+    for f, i, ident, txt in bare:
+        ok = False
+        print(f"  BARE IDENT  {os.path.basename(f)}:{i}  `{ident}` -> use the colors.* table")
+        print(f"              {txt}")
+    for f, i, txt in concat:
+        ok = False
+        print(f"  CONCAT      {os.path.basename(f)}:{i}  border built by concatenation;")
+        print(f"              Hyprland wants a gradient table {{ colors = {{...}}, angle = ... }}")
+        print(f"              {txt}")
+
+    print()
+    print("AUDIT PASS — every directive kind reconciles, colour contract held" if ok
+          else "AUDIT FAIL — see rows above")
     return 0 if ok else 1
 
 sys.exit(main())
