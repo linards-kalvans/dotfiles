@@ -1,6 +1,7 @@
--- Port of conf/cursor.conf, conf/autostart.conf, and the exec-once lines from conf/custom.conf.
--- Order matches hyprland.conf's own `source =` sequence: cursor.conf (line 21), then
--- autostart.conf (line 43), then custom.conf (line 74) — verified against the live file.
+-- Port of conf/cursor.conf, conf/autostart.conf, and the exec-once/exec lines from
+-- conf/custom.conf. Order matches hyprland.conf's own `source =` sequence: cursor.conf
+-- (line 21), then autostart.conf (line 43), then custom.conf (line 74) — verified against
+-- the live file. (hyprland.conf:64's separate dbus `exec-once` belongs to Task 9, not here.)
 --
 -- hyprlang's `exec-once = [workspace N silent] cmd` becomes a call with a rules table:
 -- cmd, then { workspace = N, silent = true } as the second argument.
@@ -30,6 +31,21 @@
 -- confirmed by the on-disk conventions above rather than a decompiled read of the Lua binding
 -- itself. UNVERIFIED until hyprland.lua is symlinked in and Hyprland restarts onto the Lua
 -- config (Task 11's manual checklist must confirm Brave/Zen land on workspaces 2/3/9 as silent).
+--
+-- conf/autostart.conf:41 uses `exec` (not `exec-once`): `~/.config/com.ml4w.hyprlandsettings/
+-- hyprctl.sh`, the ML4W Hyprland Settings app's apply-on-reload hook. hyprlang's `exec` runs at
+-- startup AND on every subsequent config reload, unlike `exec-once`. The exec_cmd call itself
+-- has no "repeat on reload" option (checked: only `exec_cmd(cmd, rules?)`, no such flag exists).
+-- The Lua API's `hyprland.start` event only covers the startup half. But HL.EventName includes a
+-- distinct "config.reloaded" event (confirmed in both hl.meta.lua and the compiled binary's
+-- event-name table, listed as a sibling of "hyprland.start"), so the hyprctl.sh call below is
+-- run from BOTH hl.on("hyprland.start", ...) and a second hl.on("config.reloaded", ...)
+-- subscription to reproduce "runs at startup and on every reload". UNVERIFIED: whether
+-- "config.reloaded" ALSO fires during the very first config parse at startup (which would mean
+-- hyprctl.sh runs twice at boot instead of once) or only on true `hyprctl reload`s (which would
+-- make this an exact match for `exec`). No on-disk source settles this either way; confirm at
+-- Task 11's manual restart and at the first reload after it. A duplicate run at boot of this
+-- particular idempotent settings-apply script is a low-severity risk either way.
 
 hl.on("hyprland.start", function()
     -- Cursor theme (from conf/cursor.conf, sourced at hyprland.conf:21)
@@ -47,6 +63,12 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("~/.config/ml4w/scripts/ml4w-autostart.sh")
     hl.exec_cmd("~/.config/waybar/launch.sh")
     hl.exec_cmd("~/.config/hypr/scripts/cleanup.sh")
+
+    -- ML4W Hyprland Settings app hook (from conf/autostart.conf:41, `exec` not `exec-once`).
+    -- Startup half of the reload-repeating behaviour; see the config.reloaded subscription
+    -- below for the reload half, and the header comment for the full caveat.
+    hl.exec_cmd("~/.config/com.ml4w.hyprlandsettings/hyprctl.sh")
+
     hl.exec_cmd("wl-clip-persist --clipboard regular")
 
     -- Brave progressive web apps, workspace 3 (from conf/custom.conf, sourced at hyprland.conf:74)
@@ -71,4 +93,10 @@ hl.on("hyprland.start", function()
     -- Background services, no workspace placement (from conf/custom.conf)
     hl.exec_cmd("/opt/pcloud/pcloud-drive.AppImage")
     hl.exec_cmd("solaar -w hide")
+end)
+
+-- Reload half of conf/autostart.conf:41's `exec` directive (see header comment for full
+-- rationale and the unverified double-fire-at-boot caveat).
+hl.on("config.reloaded", function()
+    hl.exec_cmd("~/.config/com.ml4w.hyprlandsettings/hyprctl.sh")
 end)
