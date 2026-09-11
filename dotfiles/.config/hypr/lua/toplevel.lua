@@ -13,14 +13,34 @@
 --     $color8  = $primary
 --     $color11 = $on_surface
 --
--- CONTRACT: in the Lua tree these aliases DISSOLVE AT THE USE SITE. There is no
--- runtime `color8` / `color11` binding anywhere, and this module does not create one.
--- Whoever converts conf/windows/*.conf (Task 6) must take the table that Task 5's
--- generated lua/colors.lua returns -- keyed exactly like colors.conf's $vars -- and
--- substitute:
+-- CONTRACT, in two parts. Part 2 is the one that bites -- this is NOT a rename job.
+--
+-- PART 1 -- the aliases DISSOLVE AT THE USE SITE. There is no runtime `color8` /
+-- `color11` binding anywhere, and this module does not create one. Take the table that
+-- Task 5's generated lua/colors.lua returns -- keyed exactly like colors.conf's $vars:
 --
 --     hyprlang $color8    ->   colors.primary
 --     hyprlang $color11   ->   colors.on_surface
+--
+-- PART 2 -- THE BORDER COLOURS MUST BE RESTRUCTURED, NOT JUST RENAMED. hyprlang2lua
+-- lowers a multi-token `col.active_border` into a Lua STRING CONCAT CHAIN of bare
+-- globals, and it does so silently: run it on conf/windows/default.conf and it reports
+-- `translated=7 passthrough=4 flagged=0 coverage=100.0%`, exit 0, emitting
+--
+--     active_border = color8 .. " " .. on_primary .. " 90deg",
+--
+-- Renaming the identifiers in place gives
+--
+--     active_border = colors.primary .. " " .. colors.on_primary .. " 90deg",
+--
+-- which is a STRING where Hyprland 0.55 wants a gradient TABLE. Reported by the Task 9
+-- reviewer as failing at startup with `gradient color at index {} must be a string` --
+-- that literal is present in /usr/bin/Hyprland, confirmed here. The concat chain must be
+-- taken apart into the typed gradient form used at /usr/share/hypr/hyprland.lua:93-95:
+--     col = { active_border = { colors = { "rgba(...)", "rgba(...)" }, angle = 45 },
+--             inactive_border = "rgba(...)" }
+-- Note the asymmetry: a SINGLE colour stays a plain string (inactive_border above); only
+-- the multi-colour + angle form becomes a table.
 --
 -- Worked example, conf/windows/default.conf:10 (the live variation):
 --     col.active_border = $color8 $on_primary 90deg
@@ -28,6 +48,15 @@
 --     local colors = require(<module path Task 3 establishes in require-semantics.md>)
 --     hl.config({ general = { col = { active_border = {
 --         colors = { colors.primary, colors.on_primary }, angle = 90 } } } })
+--
+-- So conf/windows/border-1.conf:11 (`col.inactive_border = $color8`) needs only the
+-- Part 1 rename. Exactly three lines under conf/windows/ need Part 2 as well -- verified
+-- with `grep -rn 'col\.\(in\)\?active_border' conf/windows/`:
+--     default.conf:10      col.active_border = $color8 $on_primary 90deg
+--     glass.conf:10        col.active_border = $color8 $on_primary 90deg
+--     transparent.conf:10  col.active_border = rgb(ffffff) $on_primary 90deg
+-- The third has no alias in it at all, so it is outside this contract but hits the same
+-- concat-chain trap; listed here so Task 6 does not miss it.
 --
 -- Thirteen files under conf/windows/ consume these two aliases:
 --     border-1..4.conf, border-1..4-reverse.conf, gamemode.conf,
@@ -49,12 +78,13 @@
 --      directly -- so an alias layer would save nothing.
 --
 -- TRAP FOR TASK 6: $color8/$color11 are declared HERE, in hyprland.conf, not in the
--- conf/windows/*.conf files. Run hyprlang2lua over those files and it will see the
--- references as undeclared and emit bare Lua identifiers `color8` / `color11`
--- (documented behaviour: "Undeclared $X in non-shell contexts rewrites to a Lua local
--- so the missing declaration surfaces as a clear load-time error"). Those MUST be
--- replaced per the table above. Left alone they are nil at runtime and the border
--- colours break silently.
+-- conf/windows/*.conf files. Run hyprlang2lua over those files and it sees the
+-- references as undeclared and emits bare Lua identifiers `color8` / `color11`.
+-- Its README claims an undeclared $X "surfaces as a clear load-time error" -- MEASURED,
+-- IT DOES NOT: conf/windows/default.conf converts at coverage=100.0%, flagged=0, exit 0,
+-- with no TODO marker. Those bare identifiers are globals that are nil at runtime, so
+-- the border colours break SILENTLY. They must be replaced per Part 1 above, and the
+-- gradient lines restructured per Part 2.
 --
 -- The mapping is also exported below as data, so a checker can assert Task 6's output
 -- against it instead of re-reading this comment.

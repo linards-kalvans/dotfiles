@@ -55,13 +55,37 @@
 -- both namespaces are re-ruled two directives later with `ignore_alpha = 0.5`, which
 -- supersedes this, so the residual risk is nil.
 --
--- UNVERIFIED: whether `layerrule2` is a live keyword on 0.55.4 at all. /usr/bin/Hyprland
--- contains `layerrule` and `layerrulev2` (the latter only to say "layerrulev2 doesn't
--- exist") but no `layerrule2`; `hyprctl configerrors` is not implemented on this build
--- ("unknown request") and debug logging is off, so the hyprlang side could not be shown
--- to apply these six at all. The Lua port expresses the evident intent (swaync blur),
--- which may therefore be a behaviour GAIN over the hyprlang tree rather than a faithful
--- copy. Confirm swaync control-centre/notification blur at Task 11's manual checklist.
+-- DELIBERATE FIX, not an open risk: `layerrule2` is NOT a keyword on Hyprland 0.55.4,
+-- and these six ML4W rules have been SILENT NO-OPS in the hyprlang tree. Proven, not
+-- inferred:
+--
+--   * Config::Legacy::CConfigManager's constructor registers the `layerrule` handler at
+--     0x4234a1 with allowFlags = 0:
+--         lea    0x7971aa(%rip),%rdx   # bba652 -> "layerrule"
+--         lea    -0x346f(%rip),%rsi    # 420040 -> handleLayerrule
+--         movabs $0x1337beef00000000,%rcx      <- SHandlerOptions, allowFlags = 0
+--         call   *...                          # Hyprlang::CConfig::registerHandler
+--     `bind` (0x4233f5) and `env` pass $0x1337beef00000001 instead. That flag is the
+--     mechanism behind bind -> binde/bindl and env -> envd prefix matching. With
+--     allowFlags = 0, the string "layerrule2" cannot reach the `layerrule` handler.
+--     (A plain `strings` check cannot see this, which is what misled the first pass.)
+--   * Tested directly against the real libhyprlang.so.0.6.8 with the `layerrule` handler
+--     and special category registered exactly as Hyprland does: `layerrule2 = blur, ...`
+--     calls no handler and raises no error, while `bindd` does reach the `bind` handler.
+--     hyprlang silently DISCARDS unknown TOP-LEVEL keys; only an unknown key on a known
+--     route (e.g. input:kb_lyout) is an error.
+--   * Live evidence agrees: `hyprctl configerrors` returns an empty list and exits 0
+--     (it IS implemented on this build -- the "unknown request" seen in the first pass
+--     came from `hyprctl layerrules`, a different command that does not exist), and the
+--     34 MB session log contains zero `ERR ]` lines.
+--
+-- Porting them anyway is the adjudicated choice: the intent is unambiguous, the blast
+-- radius is one cosmetic effect, and reproducing an upstream typo would mean writing six
+-- rules whose only purpose is to not work.
+--
+-- EXPECTED DIFFERENCE AT FIRST LUA RESTART: swaync control-centre and notification-window
+-- blur switches ON. That is a behaviour gain from fixing a dead directive, not a
+-- migration error -- Task 11 should record it as expected rather than investigate it.
 
 hl.layer_rule({
     match = { namespace = "swaync-control-center" },
