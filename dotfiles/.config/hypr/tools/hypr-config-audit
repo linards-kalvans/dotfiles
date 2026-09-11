@@ -73,6 +73,21 @@ LUA = {
 # Kinds the user deliberately dropped: counted in hyprlang, expected 0 in Lua.
 DROPPED = {"workspace_rule": "workspace-to-monitor pinning dropped at user request (2026-09-11)"}
 
+# Deliberate non-1:1 mappings. Without these, a surplus from one directive can
+# silently cancel a shortfall from another and the audit reports a false PASS --
+# which is exactly what happened when autostart.conf:41's `exec` was given two
+# call-sites while hyprland.conf:64's exec-once was still unported, and the row
+# read "21 vs 21 ok". Every entry must say WHY, and the expected Lua count is
+# hyprlang + delta. Anything else fails.
+MAPPING_DELTA = {
+    "exec": (
+        1,
+        "autostart.conf:41 `exec =` re-runs on config reload, unlike exec-once. "
+        "It is reproduced as two call-sites -- hl.on('hyprland.start') and "
+        "hl.on('config.reloaded') -- so one hyprlang directive yields two hl.exec_cmd calls.",
+    ),
+}
+
 def count_hyprlang(files):
     c = collections.Counter(); where = collections.defaultdict(list)
     for f in files:
@@ -116,37 +131,45 @@ def main():
     rows, ok = [], True
     for kind in sorted(set(hc) | set(LUA)):
         want, got = hc.get(kind, 0), lc.get(kind, 0)
+        delta, why = MAPPING_DELTA.get(kind, (0, None))
+        expect = want + delta
         if kind in DROPPED:
             status = "DROPPED" if got == 0 else "UNEXPECTED"
-            if got: ok = False
-        elif want == got:
-            status = "ok"
-        elif got < want:
-            status = "MISSING"; ok = False
+            if got:
+                ok = False
+        elif got == expect:
+            status = "ok" if not delta else "ok (+%d mapped)" % delta
+        elif got < expect:
+            status = "MISSING %d" % (expect - got); ok = False
         else:
-            status = "EXTRA"
-        rows.append((kind, want, got, status))
+            # A surplus is never benign: it is either an invented call or an
+            # undocumented 1:N mapping that could be hiding a shortfall elsewhere.
+            status = "EXTRA %d (undocumented -- add to MAPPING_DELTA)" % (got - expect); ok = False
+        rows.append((kind, want, got, expect, status, why))
 
     if "--json" in sys.argv:
         print(json.dumps({
             "conf_files": len(conf_files), "lua_files": len(lfiles),
-            "rows": [{"kind": k, "hyprlang": w, "lua": g, "status": s} for k, w, g, s in rows],
+            "rows": [{"kind": k, "hyprlang": w, "lua": g, "expected_lua": e,
+                      "status": s, "mapping_note": n} for k, w, g, e, s, n in rows],
             "ok": ok}, indent=2))
         return 0 if ok else 1
 
     print(f"hyprlang closure: {len(conf_files)} files   Lua tree: {len(lfiles)} files\n")
-    print(f"{'directive':<18}{'hyprlang':>9}{'lua':>6}   status")
-    print("-" * 48)
-    for k, w, g, s in rows:
+    print(f"{'directive':<18}{'hyprlang':>9}{'want':>6}{'lua':>6}   status")
+    print("-" * 62)
+    for k, w, g, e, s, n in rows:
         if w == 0 and g == 0:
             continue
-        print(f"{k:<18}{w:>9}{g:>6}   {s}")
-        if s == "MISSING":
+        print(f"{k:<18}{w:>9}{e:>6}{g:>6}   {s}")
+        if s.startswith("MISSING"):
             miss = where[k][:6]
-            print(f"{'':<18}{'':>15}   sources: {', '.join(miss)}"
+            print(f"{'':<18}{'':>21}   sources: {', '.join(miss)}"
                   + (" ..." if len(where[k]) > 6 else ""))
         if s == "DROPPED":
-            print(f"{'':<18}{'':>15}   {DROPPED[k]}")
+            print(f"{'':<18}{'':>21}   {DROPPED[k]}")
+        if n:
+            print(f"{'':<18}{'':>21}   note: {n}")
     print()
     print("AUDIT PASS — every directive kind reconciles" if ok
           else "AUDIT FAIL — see MISSING/UNEXPECTED rows above")
