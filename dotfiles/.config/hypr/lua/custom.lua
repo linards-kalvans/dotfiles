@@ -15,26 +15,28 @@ hl.config({
 
 hl.env("SDL_VIDEODRIVER", "wayland")
 
--- NOT PORTED, deliberately: conf/custom.conf:41 has `unbind = SUPER, s` (lowercase `s`).
--- It is a dead no-op in the live hyprlang config and is therefore reproduced as nothing.
+-- Take SUPER+S for the screenshot selection action (user-requested behaviour change).
 --
--- Evidence: ML4W binds `$mainMod, S` -> ~/.config/ml4w/scripts/sidepad.sh --init at
+-- ML4W binds `$mainMod, S` -> ~/.config/ml4w/scripts/sidepad.sh --init at
 -- conf/keybindings/default.conf:77, reached via hyprland.conf:53 -> conf/keybinding.conf:1.
--- custom.conf is sourced LAST (hyprland.conf:74), so its unbind runs after that bind --
--- yet `hyprctl -j binds` on the running config STILL lists:
---     modmask 64  key 'S'  -> exec '~/.config/ml4w/scripts/sidepad.sh --init'
--- So `unbind = SUPER, s` matches nothing today. The bind it was written for is the
--- commented-out custom.conf:42 (`# bind = SUPER, s, exec, ...screenshot.sh selection`),
--- superseded by the SUPER+SHIFT+S bind below.
+-- We deliberately take that key: unbind ML4W's binding, then bind SUPER+S to the same
+-- command as SUPER+SHIFT+S, so both keys take a screenshot selection.
 --
--- Emitting any Lua form would risk making it live: `hl.unbind("SUPER + S")` matches ML4W's
--- own spelling exactly and would kill sidepad init; `hl.unbind("SUPER + s")` is only safe if
--- Lua bind matching is case-SENSITIVE, which the stub does not document and which cannot be
--- tested without a restart. Omitting it preserves today's behaviour under either rule.
+-- The key string must be UPPERCASE "SUPER + S" to match ML4W's own spelling. The hyprlang
+-- source previously had `unbind = SUPER, s` (lowercase), which never matched and was a dead
+-- no-op; it was corrected to `unbind = SUPER, S` in the hyprlang tree (commit 2f21733) and
+-- verified live -- `hyprctl -j binds` now shows
+--     modmask 64  key 'S'  -> exec '~/.local/bin/screenshot.sh selection'
+-- where it previously showed sidepad.sh --init.
 --
--- Restoring an unbind of Super+S is a deliberate user decision, not a migration step.
--- (For the record, ML4W's screenshot bind is `$mainMod ALT, S` -> screenshot.sh
--- --instant-area at default.conf:55, live as modmask 72 -- NOT Super+S.)
+-- Ordering matters: the unbind must run after whatever registers ML4W's binding and before
+-- the rebind below. Ordering relative to other modules is main.lua's responsibility.
+-- Mirrors conf/custom.conf:44-46.
+hl.unbind("SUPER + S")
+
+hl.bind("SUPER + S",
+        hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/screenshot.sh selection"),
+        { description = "Screenshot selection" })
 
 hl.bind("SUPER + SHIFT + S",
         hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/screenshot.sh selection"),
