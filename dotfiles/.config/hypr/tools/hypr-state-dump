@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Capture normalised Hyprland runtime state for comparing two config trees.
+# Usage: hypr-state-dump <label>
+set -euo pipefail
+
+LABEL="${1:?usage: hypr-state-dump <label>}"
+OUT="/home/linards/linux-debug/hypr-migration/state/$LABEL"
+mkdir -p "$OUT"
+
+# Options this configuration actually sets. Keep in sync with the config.
+OPTIONS=(
+  general:gaps_in general:gaps_out general:border_size general:layout
+  general:resize_on_border
+  input:left_handed input:kb_layout input:kb_variant input:follow_mouse
+  input:sensitivity
+  decoration:rounding decoration:active_opacity decoration:inactive_opacity
+  misc:disable_hyprland_logo misc:disable_splash_rendering
+  misc:initial_workspace_tracking
+  debug:vfr
+  dwindle:preserve_split
+)
+
+for c in binds monitors workspacerules devices version; do
+    hyprctl -j "$c" | jq -S . > "$OUT/$c.json"
+done
+
+# monitors.json carries volatile fields; strip them so diffs mean something.
+jq -S 'map(del(.id, .activelyTearing, .currentFormat, .availableModes, .dpmsStatus))' \
+   "$OUT/monitors.json" > "$OUT/monitors.tmp" && mv "$OUT/monitors.tmp" "$OUT/monitors.json"
+
+# binds.json: addresses are per-session, drop them.
+jq -S 'map(del(.address))' "$OUT/binds.json" > "$OUT/binds.tmp" 2>/dev/null \
+   && mv "$OUT/binds.tmp" "$OUT/binds.json" || true
+
+# devices.json: hardware addresses are per-session.
+jq -S 'walk(if type == "object" then del(.address) else . end)' \
+   "$OUT/devices.json" > "$OUT/devices.tmp" && mv "$OUT/devices.tmp" "$OUT/devices.json"
+
+# One object mapping option name -> value.
+{
+  echo "{"
+  first=1
+  for opt in "${OPTIONS[@]}"; do
+      val=$(hyprctl -j getoption "$opt" | jq -c 'del(.option)')
+      [[ $first -eq 1 ]] && first=0 || echo ","
+      printf '  "%s": %s' "$opt" "$val"
+  done
+  echo ""
+  echo "}"
+} | jq -S . > "$OUT/options.json"
+
+echo "wrote $OUT"
+ls -1 "$OUT"
