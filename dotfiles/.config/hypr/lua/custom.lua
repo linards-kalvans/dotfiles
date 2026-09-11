@@ -15,8 +15,26 @@ hl.config({
 
 hl.env("SDL_VIDEODRIVER", "wayland")
 
--- ML4W binds SUPER+S to its own screenshot action; replace it with SUPER+SHIFT+S.
-hl.unbind("SUPER + S")
+-- NOT PORTED, deliberately: conf/custom.conf:41 has `unbind = SUPER, s` (lowercase `s`).
+-- It is a dead no-op in the live hyprlang config and is therefore reproduced as nothing.
+--
+-- Evidence: ML4W binds `$mainMod, S` -> ~/.config/ml4w/scripts/sidepad.sh --init at
+-- conf/keybindings/default.conf:77, reached via hyprland.conf:53 -> conf/keybinding.conf:1.
+-- custom.conf is sourced LAST (hyprland.conf:74), so its unbind runs after that bind --
+-- yet `hyprctl -j binds` on the running config STILL lists:
+--     modmask 64  key 'S'  -> exec '~/.config/ml4w/scripts/sidepad.sh --init'
+-- So `unbind = SUPER, s` matches nothing today. The bind it was written for is the
+-- commented-out custom.conf:42 (`# bind = SUPER, s, exec, ...screenshot.sh selection`),
+-- superseded by the SUPER+SHIFT+S bind below.
+--
+-- Emitting any Lua form would risk making it live: `hl.unbind("SUPER + S")` matches ML4W's
+-- own spelling exactly and would kill sidepad init; `hl.unbind("SUPER + s")` is only safe if
+-- Lua bind matching is case-SENSITIVE, which the stub does not document and which cannot be
+-- tested without a restart. Omitting it preserves today's behaviour under either rule.
+--
+-- Restoring an unbind of Super+S is a deliberate user decision, not a migration step.
+-- (For the record, ML4W's screenshot bind is `$mainMod ALT, S` -> screenshot.sh
+-- --instant-area at default.conf:55, live as modmask 72 -- NOT Super+S.)
 
 hl.bind("SUPER + SHIFT + S",
         hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/screenshot.sh selection"),
