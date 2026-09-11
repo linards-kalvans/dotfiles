@@ -1,0 +1,155 @@
+#!/usr/bin/env python3
+"""Completeness audit: every directive in the hyprlang tree must have a Lua counterpart.
+
+Walks the transitive `source =` closure from hyprland.conf, counts directives by
+kind, then counts the corresponding hl.* calls across the Lua tree and reports
+any shortfall.
+
+This exists because four config files were found orphaned during the migration by
+ad-hoc inspection -- workspaces.conf, keyboard.conf, ml4w.conf and hyprland.conf's
+own inline directives. Counting is not proof of correctness, but it makes the
+"silently dropped an entire file" class of failure impossible to miss.
+
+Usage: hypr-config-audit [--json]
+Exit 0 if every kind reconciles, 1 otherwise.
+"""
+import os, re, sys, json, collections
+
+H = os.path.expanduser("~/.config/hypr")
+
+def expand(p):
+    p = p.strip().replace("$HOME", os.path.expanduser("~"))
+    return os.path.realpath(os.path.expanduser(p))
+
+def closure(root):
+    seen, out = set(), []
+    def walk(path):
+        rp = expand(path)
+        if rp in seen or not os.path.isfile(rp):
+            return
+        seen.add(rp); out.append(rp)
+        for line in open(rp, errors="replace"):
+            st = line.strip()
+            if st.startswith("#"):
+                continue
+            m = re.match(r"^source\s*=\s*(.+?)\s*(?:#.*)?$", st)
+            if m:
+                walk(m.group(1))
+    walk(root)
+    return out
+
+# hyprlang directive -> the hl.* call that must carry it
+HYPRLANG = [
+    (r"^bind[a-z]*\s*=",        "bind"),
+    (r"^unbind\s*=",            "unbind"),
+    (r"^exec-once\s*=",         "exec"),
+    (r"^exec\s*=",              "exec"),
+    (r"^env\s*=",               "env"),
+    (r"^monitor\s*=",           "monitor"),
+    (r"^workspace\s*=",         "workspace_rule"),
+    (r"^windowrulev2\s*=",      "window_rule"),
+    (r"^windowrule\s*=",        "window_rule"),
+    (r"^windowrule\s*\{",       "window_rule"),
+    (r"^layerrule2?\s*=",       "layer_rule"),
+    (r"^animation\s*=",         "animation"),
+    (r"^bezier\s*=",            "curve"),
+    (r"^gesture\s*=",           "gesture"),
+    (r"^permission\s*=",        "permission"),
+]
+LUA = {
+    "bind":           r"\bhl\.bind\s*\(",
+    "unbind":         r"\bhl\.unbind\s*\(",
+    "exec":           r"\bhl\.exec_cmd\s*\(",
+    "env":            r"\bhl\.env\s*\(",
+    "monitor":        r"\bhl\.monitor\s*\(",
+    "workspace_rule": r"\bhl\.workspace_rule\s*\(",
+    "window_rule":    r"\bhl\.window_rule\s*\(",
+    "layer_rule":     r"\bhl\.layer_rule\s*\(",
+    "animation":      r"\bhl\.animation\s*\(",
+    "curve":          r"\bhl\.curve\s*\(",
+    "gesture":        r"\bhl\.gesture\s*\(",
+    "permission":     r"\bhl\.permission\s*\(",
+}
+# Kinds the user deliberately dropped: counted in hyprlang, expected 0 in Lua.
+DROPPED = {"workspace_rule": "workspace-to-monitor pinning dropped at user request (2026-09-11)"}
+
+def count_hyprlang(files):
+    c = collections.Counter(); where = collections.defaultdict(list)
+    for f in files:
+        for i, line in enumerate(open(f, errors="replace"), 1):
+            st = line.strip()
+            if not st or st.startswith("#"):
+                continue
+            for rx, kind in HYPRLANG:
+                if re.match(rx, st):
+                    c[kind] += 1
+                    where[kind].append(f"{os.path.basename(f)}:{i}")
+                    break
+    return c, where
+
+def lua_files():
+    out = []
+    for base, _, names in os.walk(H):
+        if os.sep + "conf" in base:      # skip the hyprlang tree
+            continue
+        for n in names:
+            if n.endswith(".lua"):
+                out.append(os.path.join(base, n))
+    return sorted(out)
+
+def count_lua(files):
+    c = collections.Counter()
+    for f in files:
+        src = open(f, errors="replace").read()
+        src = re.sub(r"--\[\[.*?\]\]", "", src, flags=re.S)
+        src = re.sub(r"^\s*--.*$", "", src, flags=re.M)
+        for kind, rx in LUA.items():
+            c[kind] += len(re.findall(rx, src))
+    return c
+
+def main():
+    conf_files = closure(os.path.join(H, "hyprland.conf"))
+    lfiles = lua_files()
+    hc, where = count_hyprlang(conf_files)
+    lc = count_lua(lfiles)
+
+    rows, ok = [], True
+    for kind in sorted(set(hc) | set(LUA)):
+        want, got = hc.get(kind, 0), lc.get(kind, 0)
+        if kind in DROPPED:
+            status = "DROPPED" if got == 0 else "UNEXPECTED"
+            if got: ok = False
+        elif want == got:
+            status = "ok"
+        elif got < want:
+            status = "MISSING"; ok = False
+        else:
+            status = "EXTRA"
+        rows.append((kind, want, got, status))
+
+    if "--json" in sys.argv:
+        print(json.dumps({
+            "conf_files": len(conf_files), "lua_files": len(lfiles),
+            "rows": [{"kind": k, "hyprlang": w, "lua": g, "status": s} for k, w, g, s in rows],
+            "ok": ok}, indent=2))
+        return 0 if ok else 1
+
+    print(f"hyprlang closure: {len(conf_files)} files   Lua tree: {len(lfiles)} files\n")
+    print(f"{'directive':<18}{'hyprlang':>9}{'lua':>6}   status")
+    print("-" * 48)
+    for k, w, g, s in rows:
+        if w == 0 and g == 0:
+            continue
+        print(f"{k:<18}{w:>9}{g:>6}   {s}")
+        if s == "MISSING":
+            miss = where[k][:6]
+            print(f"{'':<18}{'':>15}   sources: {', '.join(miss)}"
+                  + (" ..." if len(where[k]) > 6 else ""))
+        if s == "DROPPED":
+            print(f"{'':<18}{'':>15}   {DROPPED[k]}")
+    print()
+    print("AUDIT PASS — every directive kind reconciles" if ok
+          else "AUDIT FAIL — see MISSING/UNEXPECTED rows above")
+    return 0 if ok else 1
+
+sys.exit(main())
