@@ -102,15 +102,53 @@ def count_hyprlang(files):
                     break
     return c, where
 
+# ML4W selects one variation per group through nine one-line pointer files, and
+# the hyprlang closure therefore contains ONLY the active variation. The Lua tree
+# holds every variation side by side, so counting all of them compares an
+# active-only left side against an all-variations right side -- every row reads
+# EXTRA, and a surplus from one group can mask a real drop in another. Resolve the
+# same pointers here so both sides describe the same configuration.
+POINTER_TO_GROUP = {
+    "monitor.conf": "monitors",         "environment.conf": "environments",
+    "window.conf": "windows",           "decoration.conf": "decorations",
+    "layout.conf": "layouts",           "workspace.conf": "workspaces",
+    "keybinding.conf": "keybindings",   "windowrule.conf": "windowrules",
+    "animation.conf": "animations",
+}
+
+def active_variations():
+    """group -> variation name currently selected by its .conf pointer."""
+    active = {}
+    for pointer, group in POINTER_TO_GROUP.items():
+        src = os.path.join(H, "conf", pointer)
+        if not os.path.isfile(src):
+            continue
+        for line in open(src, errors="replace"):
+            m = re.match(r"^\s*source\s*=.*/([^/]+)\.conf\s*$", line.strip())
+            if m:
+                active[group] = m.group(1)
+                break
+    return active
+
 def lua_files():
-    out = []
+    """Lua modules that a Hyprland start would actually load, mirroring the
+    hyprlang closure: every non-group module, plus only the ACTIVE variation
+    from each group directory."""
+    active = active_variations()
+    out, skipped = [], []
     for base, _, names in os.walk(H):
         if os.sep + "conf" in base:      # skip the hyprlang tree
             continue
+        group = os.path.basename(base)
         for n in names:
-            if n.endswith(".lua"):
-                out.append(os.path.join(base, n))
-    return sorted(out)
+            if not n.endswith(".lua"):
+                continue
+            full = os.path.join(base, n)
+            if group in active and n[:-4] != active[group]:
+                skipped.append(full)     # inactive variation -- not loaded
+                continue
+            out.append(full)
+    return sorted(out), sorted(skipped)
 
 def count_lua(files):
     c = collections.Counter()
@@ -156,7 +194,7 @@ def check_colour_contract(lua_paths):
 
 def main():
     conf_files = closure(os.path.join(H, "hyprland.conf"))
-    lfiles = lua_files()
+    lfiles, inactive = lua_files()
     hc, where = count_hyprlang(conf_files)
     lc = count_lua(lfiles)
 
@@ -182,12 +220,14 @@ def main():
     if "--json" in sys.argv:
         print(json.dumps({
             "conf_files": len(conf_files), "lua_files": len(lfiles),
+            "inactive_variations": len(inactive),
             "rows": [{"kind": k, "hyprlang": w, "lua": g, "expected_lua": e,
                       "status": s, "mapping_note": n} for k, w, g, e, s, n in rows],
             "ok": ok}, indent=2))
         return 0 if ok else 1
 
-    print(f"hyprlang closure: {len(conf_files)} files   Lua tree: {len(lfiles)} files\n")
+    print(f"hyprlang closure: {len(conf_files)} files   "
+          f"Lua active: {len(lfiles)} files ({len(inactive)} inactive variations not counted)\n")
     print(f"{'directive':<18}{'hyprlang':>9}{'want':>6}{'lua':>6}   status")
     print("-" * 62)
     for k, w, g, e, s, n in rows:
