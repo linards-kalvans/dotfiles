@@ -247,6 +247,38 @@ def check_value_types(all_lua):
                 bad.append((f, key, got, "|".join(sorted(want))))
     return bad, unreadable, checked
 
+def require_closure():
+    """Files reachable from main.lua by following require() transitively.
+
+    The count checks above prove a directive EXISTS somewhere in the tree. They
+    cannot prove Hyprland will load it. Task 6's review found the gap: the only
+    require("monitors") in the tree lives inside lua/monitors/nwg-displays.lua,
+    which the pointer resolution classifies as an inactive variation and skips --
+    so if main.lua omitted require("monitors"), the real three-monitor layout
+    would silently vanish while every row still read ok.
+
+    Returns (reachable set, missing requires). Empty set if main.lua is absent."""
+    main = os.path.join(H, "main.lua")
+    if not os.path.isfile(main):
+        return set(), []
+    seen, missing, stack = set(), [], [main]
+    while stack:
+        f = stack.pop()
+        if f in seen or not os.path.isfile(f):
+            continue
+        seen.add(f)
+        src = re.sub(r"^\s*--.*$", "", open(f, errors="replace").read(), flags=re.M)
+        # Match both require("x") and pcall(require, "x") -- the Task 3 probe uses
+        # the latter, and a regex that only knew the direct form reported every
+        # module unreachable.
+        for mod in re.findall(r'require\s*[(,]\s*["\']([^"\']+)["\']', src):
+            cand = os.path.join(H, mod.replace(".", os.sep) + ".lua")
+            if os.path.isfile(cand):
+                stack.append(cand)
+            else:
+                missing.append((os.path.relpath(f, H), mod))
+    return seen, missing
+
 def main():
     conf_files = closure(os.path.join(H, "hyprland.conf"))
     lfiles, inactive = lua_files()
@@ -313,6 +345,7 @@ def main():
         print(f"              Hyprland wants a gradient table {{ colors = {{...}}, angle = ... }}")
         print(f"              {txt}")
 
+    reachable, missing_req = require_closure()
     all_lua = sorted(lfiles + inactive)
     bad_types, unreadable, checked = check_value_types(all_lua)
     print()
@@ -327,6 +360,26 @@ def main():
     for f, err in unreadable:
         ok = False
         print(f"  LOAD  {os.path.relpath(f, H)}: {err}")
+
+    print()
+    print("require reachability from main.lua")
+    print("-" * 62)
+    probe = os.path.join(H, "lua", "probe.lua") in reachable
+    if not reachable:
+        print("  SKIP — no main.lua yet (Task 11 writes it)")
+    elif probe:
+        print(f"  SKIP — main.lua is still the Task 3 probe build "
+              f"({len(reachable)} files reachable); re-check after Task 11")
+    else:
+        unreached = [f for f in lfiles if f not in reachable]
+        if not unreached and not missing_req:
+            print(f"  ok — all {len(lfiles)} active modules reachable from main.lua")
+        for f in sorted(unreached):
+            ok = False
+            print(f"  UNREACHED  {os.path.relpath(f, H)} — on disk but never required")
+    for src, mod in missing_req:
+        ok = False
+        print(f"  BROKEN     {src} requires '{mod}', which does not resolve to a file")
 
     print()
     print("AUDIT PASS — every directive kind reconciles, colour contract held" if ok
