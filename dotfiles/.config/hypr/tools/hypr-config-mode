@@ -27,14 +27,33 @@ current_session() {
     # flags. `.["config-file"]` (the field this script originally guessed)
     # does not exist, so it always resolves to empty below.
     #
-    # Fallback: Hyprland's own startup log states the resolved path verbatim:
-    #   DEBUG ]: Using config: /path/to/hyprland.{conf,lua}
-    # Read it from the CURRENTLY RUNNING instance's log, identified via
+    # Fallback: Hyprland's ConfigManager logs which config format won, e.g.:
+    #   DEBUG ]: [cfg] Lua config not found, using legacy config at /path/hyprland.conf
+    #   DEBUG ]: [cfg] Using lua config found at /path/hyprland.lua
+    # This pair is the ONLY signal verified against real logs on this build.
+    # Do NOT reintroduce either of these, both tried and found wanting by
+    # direct inspection of six real hyprland.log files (three conf, three
+    # lua) on this host:
+    #   - A "config-file" field in `hyprctl -j version`: absent from the JSON
+    #     entirely (see above).
+    #   - A "Using config: <path>" log line: exists for the legacy/.conf
+    #     branch only. A Lua-loaded session's log never prints it, so
+    #     grepping for it makes every Lua session silently report "unknown"
+    #     — that was fix round 1's bug, invisible until an actual Lua-mode
+    #     restart exposed it.
+    # Read the CURRENTLY RUNNING instance's log, identified via
     # $HYPRLAND_INSTANCE_SIGNATURE — the standard env var Hyprland sets
-    # naming its own runtime directory. This is a direct self-report from
-    # Hyprland, not an inference from timestamps (comparing process start
-    # time to the symlink's mtime is NOT used here — it cannot distinguish
-    # "loaded lua at boot" from "conf existed all along").
+    # naming its own runtime directory. Take the LAST matching line (a
+    # long-lived log could in principle carry a stale line from an earlier
+    # parse; the final decision is what's live). Key off which of the two
+    # exact phrases matched ("lua" vs "legacy") rather than a path suffix:
+    # the decision phrase states outright which language won, whereas the
+    # preceding "[cfg] Regular config at <path>" line (present for both
+    # branches, differing only in the path's extension) is a strictly weaker
+    # signal that depends on the resolved path happening to end the way we
+    # expect. Not an inference from timestamps either (comparing process
+    # start time to the symlink's mtime is NOT used here — it cannot
+    # distinguish "loaded lua at boot" from "conf existed all along").
     local cfg
     cfg=$(hyprctl -j version 2>/dev/null | jq -r '.["config-file"] // empty' 2>/dev/null || true)
 
@@ -63,13 +82,19 @@ current_session() {
             local runtime="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
             local log="$runtime/hypr/$sig/hyprland.log"
             if [[ -r "$log" ]]; then
-                cfg=$(grep -a 'Using config:' "$log" 2>/dev/null | tail -1 | sed -E 's/.*Using config: *//')
+                local decision
+                decision=$(grep -aE '\[cfg\] (Using lua config found|Lua config not found, using legacy config)' "$log" 2>/dev/null | tail -1)
+                if [[ "$decision" == *"Using lua config found"* ]]; then
+                    cfg="hyprland.lua"
+                elif [[ -n "$decision" ]]; then
+                    cfg="hyprland.conf"
+                fi
             fi
         fi
     fi
 
     if [[ -z "$cfg" ]]; then
-        [[ -n "$reason" ]] || reason="hyprctl exposes no config-file field, and no readable hyprland.log with a 'Using config:' line was found"
+        [[ -n "$reason" ]] || reason="hyprctl exposes no config-file field, and no readable hyprland.log with a config-format decision line was found"
         echo "unknown"
         echo "$reason"
     elif [[ "$cfg" == *.lua ]]; then
