@@ -70,3 +70,4 @@ post_hook = "jq --slurpfile palette ~/.config/ohmyposh/colors.json '. + $palette
 [templates.hyprland_lua]
 input_path = '~/.config/matugen/templates/hyprland-colors.lua'
 output_path = '~/.config/hypr/lua/colors.lua'
+post_hook = 'hyprctl reload'

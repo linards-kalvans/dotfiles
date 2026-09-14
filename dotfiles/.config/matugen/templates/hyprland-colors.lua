@@ -11,69 +11,24 @@
 -- rgba(...) string -- bare hex would force every call site to reconstruct the
 -- wrapper and would not match the upstream example's literal form.
 --
--- Placeholder expressions are copied from the existing hyprlang template,
--- ~/.config/matugen/templates/hyprland-colors.conf: it wraps the loop variable's
--- default.hex_stripped field as rgba(HEXff) inside a `for name, value in colors`
--- loop. Only the surrounding syntax changes here (Lua table constructor with
--- quoted string values instead of hyprlang dollar-assignment) and, since this
--- file lists keys explicitly rather than looping, the loop variable becomes a
--- direct colors-dot-key path -- the same direct-access form already used
--- elsewhere in this matugen config (templates/primary, templates/secondary,
--- templates/onsurface, templates/kitty-colors.conf all address a single key's
--- default.hex field directly, without a loop).
---
--- Key set matches ~/.config/hypr/colors.conf exactly (50 keys, verified via
--- `grep -E '^\$' colors.conf`) -- a key referenced later but absent here is a
--- runtime error, so this list must be kept in lockstep with colors.conf.
+-- Key set: driven by the SAME for-name-value-in-colors loop as the sibling
+-- hyprlang template (~/.config/matugen/templates/hyprland-colors.conf), so this
+-- file tracks whatever role set matugen's Material scheme emits -- no manual key
+-- list, no lockstep invariant to maintain by hand. Fix round 1 replaced an
+-- earlier version of this file that enumerated all 50 keys explicitly: that form
+-- silently dropped a role added upstream (nil at a Task 6 call site, discovered
+-- much later) and hard-failed matugen's entire run (every template, not just
+-- this one) on a role removed or renamed upstream. The loop removes both
+-- failure modes. Only the surrounding syntax differs from the sibling template:
+-- a Lua table constructor with quoted string values and a trailing comma per
+-- entry, instead of hyprlang's dollar-assignment lines. Matugen's role names
+-- (background, on_surface, surface_container_highest, ...) are already valid
+-- bare Lua identifiers -- no hyphens, no reserved words -- so they need no
+-- quoting as table keys, and Lua table constructors accept a trailing comma
+-- after every entry including the last, so the loop body needs no special
+-- case for the final iteration.
 return {
-    background                 = "rgba({{colors.background.default.hex_stripped}}ff)",
-    error                      = "rgba({{colors.error.default.hex_stripped}}ff)",
-    error_container            = "rgba({{colors.error_container.default.hex_stripped}}ff)",
-    inverse_on_surface         = "rgba({{colors.inverse_on_surface.default.hex_stripped}}ff)",
-    inverse_primary            = "rgba({{colors.inverse_primary.default.hex_stripped}}ff)",
-    inverse_surface            = "rgba({{colors.inverse_surface.default.hex_stripped}}ff)",
-    on_background              = "rgba({{colors.on_background.default.hex_stripped}}ff)",
-    on_error                   = "rgba({{colors.on_error.default.hex_stripped}}ff)",
-    on_error_container         = "rgba({{colors.on_error_container.default.hex_stripped}}ff)",
-    on_primary                 = "rgba({{colors.on_primary.default.hex_stripped}}ff)",
-    on_primary_container       = "rgba({{colors.on_primary_container.default.hex_stripped}}ff)",
-    on_primary_fixed           = "rgba({{colors.on_primary_fixed.default.hex_stripped}}ff)",
-    on_primary_fixed_variant   = "rgba({{colors.on_primary_fixed_variant.default.hex_stripped}}ff)",
-    on_secondary               = "rgba({{colors.on_secondary.default.hex_stripped}}ff)",
-    on_secondary_container     = "rgba({{colors.on_secondary_container.default.hex_stripped}}ff)",
-    on_secondary_fixed         = "rgba({{colors.on_secondary_fixed.default.hex_stripped}}ff)",
-    on_secondary_fixed_variant = "rgba({{colors.on_secondary_fixed_variant.default.hex_stripped}}ff)",
-    on_surface                 = "rgba({{colors.on_surface.default.hex_stripped}}ff)",
-    on_surface_variant         = "rgba({{colors.on_surface_variant.default.hex_stripped}}ff)",
-    on_tertiary                = "rgba({{colors.on_tertiary.default.hex_stripped}}ff)",
-    on_tertiary_container      = "rgba({{colors.on_tertiary_container.default.hex_stripped}}ff)",
-    on_tertiary_fixed          = "rgba({{colors.on_tertiary_fixed.default.hex_stripped}}ff)",
-    on_tertiary_fixed_variant  = "rgba({{colors.on_tertiary_fixed_variant.default.hex_stripped}}ff)",
-    outline                    = "rgba({{colors.outline.default.hex_stripped}}ff)",
-    outline_variant            = "rgba({{colors.outline_variant.default.hex_stripped}}ff)",
-    primary                    = "rgba({{colors.primary.default.hex_stripped}}ff)",
-    primary_container          = "rgba({{colors.primary_container.default.hex_stripped}}ff)",
-    primary_fixed              = "rgba({{colors.primary_fixed.default.hex_stripped}}ff)",
-    primary_fixed_dim          = "rgba({{colors.primary_fixed_dim.default.hex_stripped}}ff)",
-    scrim                      = "rgba({{colors.scrim.default.hex_stripped}}ff)",
-    secondary                  = "rgba({{colors.secondary.default.hex_stripped}}ff)",
-    secondary_container        = "rgba({{colors.secondary_container.default.hex_stripped}}ff)",
-    secondary_fixed            = "rgba({{colors.secondary_fixed.default.hex_stripped}}ff)",
-    secondary_fixed_dim        = "rgba({{colors.secondary_fixed_dim.default.hex_stripped}}ff)",
-    shadow                     = "rgba({{colors.shadow.default.hex_stripped}}ff)",
-    source_color               = "rgba({{colors.source_color.default.hex_stripped}}ff)",
-    surface                    = "rgba({{colors.surface.default.hex_stripped}}ff)",
-    surface_bright             = "rgba({{colors.surface_bright.default.hex_stripped}}ff)",
-    surface_container          = "rgba({{colors.surface_container.default.hex_stripped}}ff)",
-    surface_container_high     = "rgba({{colors.surface_container_high.default.hex_stripped}}ff)",
-    surface_container_highest  = "rgba({{colors.surface_container_highest.default.hex_stripped}}ff)",
-    surface_container_low      = "rgba({{colors.surface_container_low.default.hex_stripped}}ff)",
-    surface_container_lowest   = "rgba({{colors.surface_container_lowest.default.hex_stripped}}ff)",
-    surface_dim                = "rgba({{colors.surface_dim.default.hex_stripped}}ff)",
-    surface_tint               = "rgba({{colors.surface_tint.default.hex_stripped}}ff)",
-    surface_variant            = "rgba({{colors.surface_variant.default.hex_stripped}}ff)",
-    tertiary                   = "rgba({{colors.tertiary.default.hex_stripped}}ff)",
-    tertiary_container         = "rgba({{colors.tertiary_container.default.hex_stripped}}ff)",
-    tertiary_fixed             = "rgba({{colors.tertiary_fixed.default.hex_stripped}}ff)",
-    tertiary_fixed_dim         = "rgba({{colors.tertiary_fixed_dim.default.hex_stripped}}ff)",
+<* for name, value in colors *>
+    {{name}} = "rgba({{value.default.hex_stripped}}ff)",
+<* endfor *>
 }

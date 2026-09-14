@@ -11,69 +11,122 @@
 -- rgba(...) string -- bare hex would force every call site to reconstruct the
 -- wrapper and would not match the upstream example's literal form.
 --
--- Placeholder expressions are copied from the existing hyprlang template,
--- ~/.config/matugen/templates/hyprland-colors.conf: it wraps the loop variable's
--- default.hex_stripped field as rgba(HEXff) inside a `for name, value in colors`
--- loop. Only the surrounding syntax changes here (Lua table constructor with
--- quoted string values instead of hyprlang dollar-assignment) and, since this
--- file lists keys explicitly rather than looping, the loop variable becomes a
--- direct colors-dot-key path -- the same direct-access form already used
--- elsewhere in this matugen config (templates/primary, templates/secondary,
--- templates/onsurface, templates/kitty-colors.conf all address a single key's
--- default.hex field directly, without a loop).
---
--- Key set matches ~/.config/hypr/colors.conf exactly (50 keys, verified via
--- `grep -E '^\$' colors.conf`) -- a key referenced later but absent here is a
--- runtime error, so this list must be kept in lockstep with colors.conf.
+-- Key set: driven by the SAME for-name-value-in-colors loop as the sibling
+-- hyprlang template (~/.config/matugen/templates/hyprland-colors.conf), so this
+-- file tracks whatever role set matugen's Material scheme emits -- no manual key
+-- list, no lockstep invariant to maintain by hand. Fix round 1 replaced an
+-- earlier version of this file that enumerated all 50 keys explicitly: that form
+-- silently dropped a role added upstream (nil at a Task 6 call site, discovered
+-- much later) and hard-failed matugen's entire run (every template, not just
+-- this one) on a role removed or renamed upstream. The loop removes both
+-- failure modes. Only the surrounding syntax differs from the sibling template:
+-- a Lua table constructor with quoted string values and a trailing comma per
+-- entry, instead of hyprlang's dollar-assignment lines. Matugen's role names
+-- (background, on_surface, surface_container_highest, ...) are already valid
+-- bare Lua identifiers -- no hyphens, no reserved words -- so they need no
+-- quoting as table keys, and Lua table constructors accept a trailing comma
+-- after every entry including the last, so the loop body needs no special
+-- case for the final iteration.
 return {
-    background                 = "rgba(17130bff)",
-    error                      = "rgba(ffb4abff)",
-    error_container            = "rgba(93000aff)",
-    inverse_on_surface         = "rgba(353027ff)",
-    inverse_primary            = "rgba(7b580cff)",
-    inverse_surface            = "rgba(ece1d4ff)",
-    on_background              = "rgba(ece1d4ff)",
-    on_error                   = "rgba(690005ff)",
-    on_error_container         = "rgba(ffdad6ff)",
-    on_primary                 = "rgba(412d00ff)",
-    on_primary_container       = "rgba(ffdea8ff)",
-    on_primary_fixed           = "rgba(271900ff)",
-    on_primary_fixed_variant   = "rgba(5e4200ff)",
-    on_secondary               = "rgba(3c2e15ff)",
-    on_secondary_container     = "rgba(f7dfbbff)",
-    on_secondary_fixed         = "rgba(251a04ff)",
+
+    background = "rgba(17130bff)",
+
+    error = "rgba(ffb4abff)",
+
+    error_container = "rgba(93000aff)",
+
+    inverse_on_surface = "rgba(353027ff)",
+
+    inverse_primary = "rgba(7b580cff)",
+
+    inverse_surface = "rgba(ece1d4ff)",
+
+    on_background = "rgba(ece1d4ff)",
+
+    on_error = "rgba(690005ff)",
+
+    on_error_container = "rgba(ffdad6ff)",
+
+    on_primary = "rgba(412d00ff)",
+
+    on_primary_container = "rgba(ffdea8ff)",
+
+    on_primary_fixed = "rgba(271900ff)",
+
+    on_primary_fixed_variant = "rgba(5e4200ff)",
+
+    on_secondary = "rgba(3c2e15ff)",
+
+    on_secondary_container = "rgba(f7dfbbff)",
+
+    on_secondary_fixed = "rgba(251a04ff)",
+
     on_secondary_fixed_variant = "rgba(54442aff)",
-    on_surface                 = "rgba(ece1d4ff)",
-    on_surface_variant         = "rgba(d1c5b4ff)",
-    on_tertiary                = "rgba(203619ff)",
-    on_tertiary_container      = "rgba(cfebc1ff)",
-    on_tertiary_fixed          = "rgba(0b2006ff)",
-    on_tertiary_fixed_variant  = "rgba(364d2eff)",
-    outline                    = "rgba(9a8f80ff)",
-    outline_variant            = "rgba(4e4639ff)",
-    primary                    = "rgba(edc06cff)",
-    primary_container          = "rgba(5e4200ff)",
-    primary_fixed              = "rgba(ffdea8ff)",
-    primary_fixed_dim          = "rgba(edc06cff)",
-    scrim                      = "rgba(000000ff)",
-    secondary                  = "rgba(dac3a0ff)",
-    secondary_container        = "rgba(54442aff)",
-    secondary_fixed            = "rgba(f7dfbbff)",
-    secondary_fixed_dim        = "rgba(dac3a0ff)",
-    shadow                     = "rgba(000000ff)",
-    source_color               = "rgba(958366ff)",
-    surface                    = "rgba(17130bff)",
-    surface_bright             = "rgba(3e382fff)",
-    surface_container          = "rgba(241f17ff)",
-    surface_container_high     = "rgba(2f2921ff)",
-    surface_container_highest  = "rgba(3a342bff)",
-    surface_container_low      = "rgba(201b13ff)",
-    surface_container_lowest   = "rgba(120e07ff)",
-    surface_dim                = "rgba(17130bff)",
-    surface_tint               = "rgba(edc06cff)",
-    surface_variant            = "rgba(4e4639ff)",
-    tertiary                   = "rgba(b3cea6ff)",
-    tertiary_container         = "rgba(364d2eff)",
-    tertiary_fixed             = "rgba(cfebc1ff)",
-    tertiary_fixed_dim         = "rgba(b3cea6ff)",
+
+    on_surface = "rgba(ece1d4ff)",
+
+    on_surface_variant = "rgba(d1c5b4ff)",
+
+    on_tertiary = "rgba(203619ff)",
+
+    on_tertiary_container = "rgba(cfebc1ff)",
+
+    on_tertiary_fixed = "rgba(0b2006ff)",
+
+    on_tertiary_fixed_variant = "rgba(364d2eff)",
+
+    outline = "rgba(9a8f80ff)",
+
+    outline_variant = "rgba(4e4639ff)",
+
+    primary = "rgba(edc06cff)",
+
+    primary_container = "rgba(5e4200ff)",
+
+    primary_fixed = "rgba(ffdea8ff)",
+
+    primary_fixed_dim = "rgba(edc06cff)",
+
+    scrim = "rgba(000000ff)",
+
+    secondary = "rgba(dac3a0ff)",
+
+    secondary_container = "rgba(54442aff)",
+
+    secondary_fixed = "rgba(f7dfbbff)",
+
+    secondary_fixed_dim = "rgba(dac3a0ff)",
+
+    shadow = "rgba(000000ff)",
+
+    source_color = "rgba(958366ff)",
+
+    surface = "rgba(17130bff)",
+
+    surface_bright = "rgba(3e382fff)",
+
+    surface_container = "rgba(241f17ff)",
+
+    surface_container_high = "rgba(2f2921ff)",
+
+    surface_container_highest = "rgba(3a342bff)",
+
+    surface_container_low = "rgba(201b13ff)",
+
+    surface_container_lowest = "rgba(120e07ff)",
+
+    surface_dim = "rgba(17130bff)",
+
+    surface_tint = "rgba(edc06cff)",
+
+    surface_variant = "rgba(4e4639ff)",
+
+    tertiary = "rgba(b3cea6ff)",
+
+    tertiary_container = "rgba(364d2eff)",
+
+    tertiary_fixed = "rgba(cfebc1ff)",
+
+    tertiary_fixed_dim = "rgba(b3cea6ff)",
+
 }
