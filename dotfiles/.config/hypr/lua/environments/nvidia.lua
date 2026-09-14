@@ -18,7 +18,7 @@ hl.env("__NV_PRIME_RENDER_OFFLOAD", "1")
 hl.env("__VK_LAYER_NV_optimus", "NVIDIA_only")
 
 -- FOR VM and POSSIBLY NVIDIA
-hl.env("WLR_NO_HARDWARE_CURSORS", "1")
+hl.env("WLR_NO_HARDWARE_CURSORS", "1")  -- On hyprland >v0.41, now configured on variable cursor section
 hl.env("WLR_RENDERER_ALLOW_SOFTWARE", "1")
 
 -- nvidia firefox (for hardware acceleration on FF)?

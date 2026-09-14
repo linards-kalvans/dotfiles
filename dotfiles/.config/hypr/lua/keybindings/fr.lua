@@ -11,138 +11,138 @@ local HYPRSCRIPTS = "~/.config/hypr/scripts"
 local SCRIPTS = "~/.config/ml4w/scripts"
 
 -- Applications
-hl.bind(mainMod .. " + RETURN", hl.dsp.exec_cmd("~/.config/ml4w/settings/terminal.sh"))
-hl.bind(mainMod .. " + B", hl.dsp.exec_cmd("~/.config/ml4w/settings/browser.sh"))
-hl.bind(mainMod .. " + E", hl.dsp.exec_cmd("~/.config/ml4w/settings/filemanager.sh"))
-hl.bind(mainMod .. " + CTRL + E", hl.dsp.exec_cmd("~/.config/ml4w/settings/emojipicker.sh"))
-hl.bind(mainMod .. " + CTRL + C", hl.dsp.exec_cmd("~/.config/ml4w/settings/calculator.sh"))
+hl.bind(mainMod .. " + RETURN", hl.dsp.exec_cmd("~/.config/ml4w/settings/terminal.sh"))  -- Open the terminal
+hl.bind(mainMod .. " + B", hl.dsp.exec_cmd("~/.config/ml4w/settings/browser.sh"))  -- Open the browser
+hl.bind(mainMod .. " + E", hl.dsp.exec_cmd("~/.config/ml4w/settings/filemanager.sh"))  -- Open the filemanager
+hl.bind(mainMod .. " + CTRL + E", hl.dsp.exec_cmd("~/.config/ml4w/settings/emojipicker.sh"))  -- Open the emoji picker
+hl.bind(mainMod .. " + CTRL + C", hl.dsp.exec_cmd("~/.config/ml4w/settings/calculator.sh"))  -- Open the calculator
 
 -- Display
-hl.bind(mainMod .. " + SHIFT + mouse_down", hl.dsp.exec_cmd("hyprctl keyword cursor:zoom_factor $(awk \"BEGIN {print $(hyprctl getoption cursor:zoom_factor | grep 'float:' | awk '{print $2}') + 0.5}\")"))
-hl.bind(mainMod .. " + SHIFT + mouse_up", hl.dsp.exec_cmd("hyprctl keyword cursor:zoom_factor $(awk \"BEGIN {print $(hyprctl getoption cursor:zoom_factor | grep 'float:' | awk '{print $2}') - 0.5}\")"))
-hl.bind(mainMod .. " + SHIFT + Z", hl.dsp.exec_cmd("hyprctl keyword cursor:zoom_factor 1"))
+hl.bind(mainMod .. " + SHIFT + mouse_down", hl.dsp.exec_cmd("hyprctl keyword cursor:zoom_factor $(awk \"BEGIN {print $(hyprctl getoption cursor:zoom_factor | grep 'float:' | awk '{print $2}') + 0.5}\")"))  -- Increase display zoom
+hl.bind(mainMod .. " + SHIFT + mouse_up", hl.dsp.exec_cmd("hyprctl keyword cursor:zoom_factor $(awk \"BEGIN {print $(hyprctl getoption cursor:zoom_factor | grep 'float:' | awk '{print $2}') - 0.5}\")"))  -- Decrease display zoom
+hl.bind(mainMod .. " + SHIFT + Z", hl.dsp.exec_cmd("hyprctl keyword cursor:zoom_factor 1"))  -- Reset display zoom
 
 -- Windows
-hl.bind(mainMod .. " + Q", hl.dsp.window.close())
-hl.bind(mainMod .. " + SHIFT + Q", hl.dsp.exec_cmd("hyprctl activewindow | grep pid | tr -d 'pid:' | xargs kill"))
-hl.bind(mainMod .. " + F", hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" }))
-hl.bind(mainMod .. " + M", hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" }))
-hl.bind(mainMod .. " + T", hl.dsp.window.float({ action = "toggle" }))
+hl.bind(mainMod .. " + Q", hl.dsp.window.close())  -- Kill active window
+hl.bind(mainMod .. " + SHIFT + Q", hl.dsp.exec_cmd("hyprctl activewindow | grep pid | tr -d 'pid:' | xargs kill"))  -- Quit active window and all open instances
+hl.bind(mainMod .. " + F", hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" }))  -- Set active window to fullscreen
+hl.bind(mainMod .. " + M", hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" }))  -- Maximize Window
+hl.bind(mainMod .. " + T", hl.dsp.window.float({ action = "toggle" }))  -- Toggle active windows into floating mode
 -- HAND-PORTED (Task 6). hyprlang2lua flagged line 29 and emitted the bind
 -- COMMENTED OUT, silently dropping a keybinding -- `-r` still reported
--- coverage=99.1%%, and the file parsed clean. Source directive:
+-- coverage=99.1%, and the file parsed clean. Source directive:
 --     bind = $mainMod SHIFT, T, workspaceopt, allfloat
 -- Hyprland 0.55.4 has NO typed equivalent: HL.DspWorkspaceNamespace exposes only
--- move / rename / swap_monitors / toggle_special (stubs hl.meta.lua:886-891), and
+-- move / rename / swap_monitors / toggle_special (stubs hl.meta.lua:885-890), and
 -- there is no hl.dsp.workspaceopt. The dispatcher itself still exists in the
 -- compositor (`strings /usr/bin/Hyprland` contains "workspaceopt"), so it is
 -- reachable only through hyprctl. Per the converter README, a hyprctl subcommand
 -- with no typed mapping stays a literal exec_cmd; this one pays a process spawn
 -- per keypress, which is the cost of keeping the binding at all.
-hl.bind(mainMod .. " + SHIFT + T", hl.dsp.exec_cmd("hyprctl dispatch workspaceopt allfloat"))
-hl.bind(mainMod .. " + J", hl.dsp.layout("togglesplit"))
-hl.bind(mainMod .. " + left", hl.dsp.focus({ direction = "left" }))
-hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "right" }))
-hl.bind(mainMod .. " + up", hl.dsp.focus({ direction = "up" }))
-hl.bind(mainMod .. " + down", hl.dsp.focus({ direction = "down" }))
-hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag())
-hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize())
-hl.bind(mainMod .. " + SHIFT + right", hl.dsp.window.resize({ x = 100, y = 0, relative = true }))
-hl.bind(mainMod .. " + SHIFT + left", hl.dsp.window.resize({ x = -100, y = 0, relative = true }))
-hl.bind(mainMod .. " + SHIFT + down", hl.dsp.window.resize({ x = 0, y = 100, relative = true }))
-hl.bind(mainMod .. " + SHIFT + up", hl.dsp.window.resize({ x = 0, y = -100, relative = true }))
-hl.bind(mainMod .. " + G", hl.dsp.group.toggle())
-hl.bind(mainMod .. " + K", hl.dsp.layout("swapsplit"))
-hl.bind(mainMod .. " + ALT + left", hl.dsp.window.swap({ direction = "l" }))
-hl.bind(mainMod .. " + ALT + right", hl.dsp.window.swap({ direction = "r" }))
-hl.bind(mainMod .. " + ALT + up", hl.dsp.window.swap({ direction = "u" }))
-hl.bind(mainMod .. " + ALT + down", hl.dsp.window.swap({ direction = "d" }))
-hl.bind("ALT + Tab", hl.dsp.window.cycle_next({ next = true }), { repeating = true })
-hl.bind("ALT + Tab", hl.dsp.window.bring_to_top(), { repeating = true })
+hl.bind(mainMod .. " + SHIFT + T", hl.dsp.exec_cmd("hyprctl dispatch workspaceopt allfloat"))  -- Toggle all windows into floating mode
+hl.bind(mainMod .. " + J", hl.dsp.layout("togglesplit"))  -- Toggle split
+hl.bind(mainMod .. " + left", hl.dsp.focus({ direction = "left" }))  -- Move focus left
+hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "right" }))  -- Move focus right
+hl.bind(mainMod .. " + up", hl.dsp.focus({ direction = "up" }))  -- Move focus up
+hl.bind(mainMod .. " + down", hl.dsp.focus({ direction = "down" }))  -- Move focus down
+hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag())  -- Move window with the mouse
+hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize())  -- Resize window with the mouse
+hl.bind(mainMod .. " + SHIFT + right", hl.dsp.window.resize({ x = 100, y = 0, relative = true }))  -- Increase window width with keyboard
+hl.bind(mainMod .. " + SHIFT + left", hl.dsp.window.resize({ x = -100, y = 0, relative = true }))  -- Reduce window width with keyboard
+hl.bind(mainMod .. " + SHIFT + down", hl.dsp.window.resize({ x = 0, y = 100, relative = true }))  -- Increase window height with keyboard
+hl.bind(mainMod .. " + SHIFT + up", hl.dsp.window.resize({ x = 0, y = -100, relative = true }))  -- Reduce window height with keyboard
+hl.bind(mainMod .. " + G", hl.dsp.group.toggle())  -- Toggle window group
+hl.bind(mainMod .. " + K", hl.dsp.layout("swapsplit"))  -- Swapsplit
+hl.bind(mainMod .. " + ALT + left", hl.dsp.window.swap({ direction = "l" }))  -- Swap tiled window left
+hl.bind(mainMod .. " + ALT + right", hl.dsp.window.swap({ direction = "r" }))  -- Swap tiled window right
+hl.bind(mainMod .. " + ALT + up", hl.dsp.window.swap({ direction = "u" }))  -- Swap tiled window up
+hl.bind(mainMod .. " + ALT + down", hl.dsp.window.swap({ direction = "d" }))  -- Swap tiled window down
+hl.bind("ALT + Tab", hl.dsp.window.cycle_next({ next = true }), { repeating = true })  -- Cycle between windows
+hl.bind("ALT + Tab", hl.dsp.window.bring_to_top(), { repeating = true })  -- Bring active window to the top
 
 -- Actions
-hl.bind(mainMod .. " + CTRL + R", hl.dsp.exec_cmd("hyprctl reload"))
-hl.bind(mainMod .. " + SHIFT + A", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/toggle-animations.sh"))
-hl.bind(mainMod .. " + PRINT", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/screenshot.sh"))
-hl.bind(mainMod .. " + SHIFT + S", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/screenshot.sh"))
-hl.bind(mainMod .. " + CTRL + Q", hl.dsp.exec_cmd("~/.config/ml4w/scripts/wlogout.sh"))
-hl.bind(mainMod .. " + SHIFT + W", hl.dsp.exec_cmd("waypaper --random"))
-hl.bind(mainMod .. " + CTRL + W", hl.dsp.exec_cmd("waypaper"))
-hl.bind(mainMod .. " + ALT + W", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/wallpaper-automation.sh"))
-hl.bind(mainMod .. " + CTRL + RETURN", hl.dsp.exec_cmd("~/.config/hypr/scripts/launcher.sh"))
-hl.bind(mainMod .. " + CTRL + K", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/keybindings.sh"))
-hl.bind(mainMod .. " + SHIFT + B", hl.dsp.exec_cmd("~/.config/waybar/launch.sh"))
-hl.bind(mainMod .. " + CTRL + B", hl.dsp.exec_cmd("~/.config/waybar/toggle.sh"))
-hl.bind(mainMod .. " + SHIFT + R", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/loadconfig.sh"))
-hl.bind(mainMod .. " + V", hl.dsp.exec_cmd(SCRIPTS .. "/cliphist.sh"))
-hl.bind(mainMod .. " + CTRL + T", hl.dsp.exec_cmd("~/.config/waybar/themeswitcher.sh"))
-hl.bind(mainMod .. " + CTRL + S", hl.dsp.exec_cmd("flatpak run com.ml4w.settings"))
-hl.bind(mainMod .. " + ALT + G", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/gamemode.sh"))
-hl.bind(mainMod .. " + CTRL + L", hl.dsp.exec_cmd("~/.config/hypr/scripts/power.sh lock"))
-hl.bind(mainMod .. " + SHIFT + H", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/hyprshade.sh"))
-hl.bind("CTRL + Tab", hl.dsp.exec_cmd("~/.config/ml4w/scripts/focus.sh"))
+hl.bind(mainMod .. " + CTRL + R", hl.dsp.exec_cmd("hyprctl reload"))  -- Reload Hyprland configuration
+hl.bind(mainMod .. " + SHIFT + A", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/toggle-animations.sh"))  -- Toggle animations
+hl.bind(mainMod .. " + PRINT", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/screenshot.sh"))  -- Take a screenshot
+hl.bind(mainMod .. " + SHIFT + S", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/screenshot.sh"))  -- Take a screenshot
+hl.bind(mainMod .. " + CTRL + Q", hl.dsp.exec_cmd("~/.config/ml4w/scripts/wlogout.sh"))  -- Start wlogout
+hl.bind(mainMod .. " + SHIFT + W", hl.dsp.exec_cmd("waypaper --random"))  -- Change the wallpaper
+hl.bind(mainMod .. " + CTRL + W", hl.dsp.exec_cmd("waypaper"))  -- Open wallpaper selector
+hl.bind(mainMod .. " + ALT + W", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/wallpaper-automation.sh"))  -- Start random wallpaper script
+hl.bind(mainMod .. " + CTRL + RETURN", hl.dsp.exec_cmd("~/.config/hypr/scripts/launcher.sh"))  -- Open application launcher
+hl.bind(mainMod .. " + CTRL + K", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/keybindings.sh"))  -- Show keybindings
+hl.bind(mainMod .. " + SHIFT + B", hl.dsp.exec_cmd("~/.config/waybar/launch.sh"))  -- Reload waybar
+hl.bind(mainMod .. " + CTRL + B", hl.dsp.exec_cmd("~/.config/waybar/toggle.sh"))  -- Toggle waybar
+hl.bind(mainMod .. " + SHIFT + R", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/loadconfig.sh"))  -- Reload hyprland config
+hl.bind(mainMod .. " + V", hl.dsp.exec_cmd(SCRIPTS .. "/cliphist.sh"))  -- Open clipboard manager
+hl.bind(mainMod .. " + CTRL + T", hl.dsp.exec_cmd("~/.config/waybar/themeswitcher.sh"))  -- Open waybar theme switcher
+hl.bind(mainMod .. " + CTRL + S", hl.dsp.exec_cmd("flatpak run com.ml4w.settings"))  -- Open ML4W Dotfiles Settings app
+hl.bind(mainMod .. " + ALT + G", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/gamemode.sh"))  -- Toggle game mode
+hl.bind(mainMod .. " + CTRL + L", hl.dsp.exec_cmd("~/.config/hypr/scripts/power.sh lock"))  -- Start wlogout
+hl.bind(mainMod .. " + SHIFT + H", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/hyprshade.sh"))  -- Launch Hyprshade
+hl.bind("CTRL + Tab", hl.dsp.exec_cmd("~/.config/ml4w/scripts/focus.sh"))  -- Open Select Window Menu
 
 -- Sidepad
-hl.bind(mainMod .. " + CTRL + right", hl.dsp.exec_cmd("~/.config/ml4w/scripts/sidepad.sh"))
-hl.bind(mainMod .. " + CTRL + left", hl.dsp.exec_cmd("~/.config/ml4w/scripts/sidepad.sh --hide"))
-hl.bind(mainMod .. " + S", hl.dsp.exec_cmd("~/.config/ml4w/scripts/sidepad.sh --init"))
-hl.bind(mainMod .. " + SHIFT + S", hl.dsp.exec_cmd("~/.config/ml4w/scripts/sidepad.sh --select"))
+hl.bind(mainMod .. " + CTRL + right", hl.dsp.exec_cmd("~/.config/ml4w/scripts/sidepad.sh"))  -- Open Sidepad
+hl.bind(mainMod .. " + CTRL + left", hl.dsp.exec_cmd("~/.config/ml4w/scripts/sidepad.sh --hide"))  -- Close Sidepad
+hl.bind(mainMod .. " + S", hl.dsp.exec_cmd("~/.config/ml4w/scripts/sidepad.sh --init"))  -- Init Sidepad
+hl.bind(mainMod .. " + SHIFT + S", hl.dsp.exec_cmd("~/.config/ml4w/scripts/sidepad.sh --select"))  -- Select Sidepad
 
 -- Workspaces
-hl.bind(mainMod .. " + ampersand", hl.dsp.focus({ workspace = 1 }))
-hl.bind(mainMod .. " + eacute", hl.dsp.focus({ workspace = 2 }))
-hl.bind(mainMod .. " + quotedbl", hl.dsp.focus({ workspace = 3 }))
-hl.bind(mainMod .. " + apostrophe", hl.dsp.focus({ workspace = 4 }))
-hl.bind(mainMod .. " + parenleft", hl.dsp.focus({ workspace = 5 }))
-hl.bind(mainMod .. " + minus", hl.dsp.focus({ workspace = 6 }))
-hl.bind(mainMod .. " + egrave", hl.dsp.focus({ workspace = 7 }))
-hl.bind(mainMod .. " + underscore", hl.dsp.focus({ workspace = 8 }))
-hl.bind(mainMod .. " + ccedilla", hl.dsp.focus({ workspace = 9 }))
-hl.bind(mainMod .. " + agrave", hl.dsp.focus({ workspace = 10 }))
+hl.bind(mainMod .. " + ampersand", hl.dsp.focus({ workspace = 1 }))  -- Open workspace 1
+hl.bind(mainMod .. " + eacute", hl.dsp.focus({ workspace = 2 }))  -- Open workspace 2
+hl.bind(mainMod .. " + quotedbl", hl.dsp.focus({ workspace = 3 }))  -- Open workspace 3
+hl.bind(mainMod .. " + apostrophe", hl.dsp.focus({ workspace = 4 }))  -- Open workspace 4
+hl.bind(mainMod .. " + parenleft", hl.dsp.focus({ workspace = 5 }))  -- Open workspace 5
+hl.bind(mainMod .. " + minus", hl.dsp.focus({ workspace = 6 }))  -- Open workspace 6
+hl.bind(mainMod .. " + egrave", hl.dsp.focus({ workspace = 7 }))  -- Open workspace 7
+hl.bind(mainMod .. " + underscore", hl.dsp.focus({ workspace = 8 }))  -- Open workspace 8
+hl.bind(mainMod .. " + ccedilla", hl.dsp.focus({ workspace = 9 }))  -- Open workspace 9
+hl.bind(mainMod .. " + agrave", hl.dsp.focus({ workspace = 10 }))  -- Open workspace 10
 
-hl.bind(mainMod .. " + SHIFT + ampersand", hl.dsp.window.move({ workspace = 1 }))
-hl.bind(mainMod .. " + SHIFT + eacute", hl.dsp.window.move({ workspace = 2 }))
-hl.bind(mainMod .. " + SHIFT + quotedbl", hl.dsp.window.move({ workspace = 3 }))
-hl.bind(mainMod .. " + SHIFT + apostrophe", hl.dsp.window.move({ workspace = 4 }))
-hl.bind(mainMod .. " + SHIFT + parenleft", hl.dsp.window.move({ workspace = 5 }))
-hl.bind(mainMod .. " + SHIFT + minus", hl.dsp.window.move({ workspace = 6 }))
-hl.bind(mainMod .. " + SHIFT + egrave", hl.dsp.window.move({ workspace = 7 }))
-hl.bind(mainMod .. " + SHIFT + underscore", hl.dsp.window.move({ workspace = 8 }))
-hl.bind(mainMod .. " + SHIFT + ccedilla", hl.dsp.window.move({ workspace = 9 }))
-hl.bind(mainMod .. " + SHIFT + agrave", hl.dsp.window.move({ workspace = 10 }))
+hl.bind(mainMod .. " + SHIFT + ampersand", hl.dsp.window.move({ workspace = 1 }))  -- Move active window to workspace 1
+hl.bind(mainMod .. " + SHIFT + eacute", hl.dsp.window.move({ workspace = 2 }))  -- Move active window to workspace 2
+hl.bind(mainMod .. " + SHIFT + quotedbl", hl.dsp.window.move({ workspace = 3 }))  -- Move active window to workspace 3
+hl.bind(mainMod .. " + SHIFT + apostrophe", hl.dsp.window.move({ workspace = 4 }))  -- Move active window to workspace 4
+hl.bind(mainMod .. " + SHIFT + parenleft", hl.dsp.window.move({ workspace = 5 }))  -- Move active window to workspace 5
+hl.bind(mainMod .. " + SHIFT + minus", hl.dsp.window.move({ workspace = 6 }))  -- Move active window to workspace 6
+hl.bind(mainMod .. " + SHIFT + egrave", hl.dsp.window.move({ workspace = 7 }))  -- Move active window to workspace 7
+hl.bind(mainMod .. " + SHIFT + underscore", hl.dsp.window.move({ workspace = 8 }))  -- Move active window to workspace 8
+hl.bind(mainMod .. " + SHIFT + ccedilla", hl.dsp.window.move({ workspace = 9 }))  -- Move active window to workspace 9
+hl.bind(mainMod .. " + SHIFT + agrave", hl.dsp.window.move({ workspace = 10 }))  -- Move active window to workspace 10
 
-hl.bind(mainMod .. " + Tab", hl.dsp.focus({ workspace = "m+1" }))
-hl.bind(mainMod .. " + SHIFT + Tab", hl.dsp.focus({ workspace = "m-1" }))
+hl.bind(mainMod .. " + Tab", hl.dsp.focus({ workspace = "m+1" }))  -- Open next workspace
+hl.bind(mainMod .. " + SHIFT + Tab", hl.dsp.focus({ workspace = "m-1" }))  -- Open previous workspace
 
-hl.bind(mainMod .. " + CTRL + ampersand", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 1"))
-hl.bind(mainMod .. " + CTRL + eacute", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 2"))
-hl.bind(mainMod .. " + CTRL + quotedbl", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 3"))
-hl.bind(mainMod .. " + CTRL + apostrophe", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 4"))
-hl.bind(mainMod .. " + CTRL + parenleft", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 5"))
-hl.bind(mainMod .. " + CTRL + minus", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 6"))
-hl.bind(mainMod .. " + CTRL + egrave", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 7"))
-hl.bind(mainMod .. " + CTRL + underscore", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 8"))
-hl.bind(mainMod .. " + CTRL + ccedilla", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 9"))
-hl.bind(mainMod .. " + CTRL + agrave", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 10"))
+hl.bind(mainMod .. " + CTRL + ampersand", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 1"))  -- Move all windows to workspace 1
+hl.bind(mainMod .. " + CTRL + eacute", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 2"))  -- Move all windows to workspace 2
+hl.bind(mainMod .. " + CTRL + quotedbl", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 3"))  -- Move all windows to workspace 3
+hl.bind(mainMod .. " + CTRL + apostrophe", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 4"))  -- Move all windows to workspace 4
+hl.bind(mainMod .. " + CTRL + parenleft", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 5"))  -- Move all windows to workspace 5
+hl.bind(mainMod .. " + CTRL + minus", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 6"))  -- Move all windows to workspace 6
+hl.bind(mainMod .. " + CTRL + egrave", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 7"))  -- Move all windows to workspace 7
+hl.bind(mainMod .. " + CTRL + underscore", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 8"))  -- Move all windows to workspace 8
+hl.bind(mainMod .. " + CTRL + ccedilla", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 9"))  -- Move all windows to workspace 9
+hl.bind(mainMod .. " + CTRL + agrave", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/moveTo.sh 10"))  -- Move all windows to workspace 10
 
-hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
-hl.bind(mainMod .. " + mouse_up", hl.dsp.focus({ workspace = "e-1" }))
-hl.bind(mainMod .. " + CTRL + down", hl.dsp.focus({ workspace = "empty" }))
+hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))  -- Open next workspace
+hl.bind(mainMod .. " + mouse_up", hl.dsp.focus({ workspace = "e-1" }))  -- Open previous workspace
+hl.bind(mainMod .. " + CTRL + down", hl.dsp.focus({ workspace = "empty" }))  -- Open the next empty workspace
 
 -- Fn keys
-hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd("brightnessctl -q s +10%"))
-hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl -q s 10%-"))
-hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("pactl set-sink-volume @DEFAULT_SINK@ +5%"))
-hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("pactl set-sink-volume @DEFAULT_SINK@ -5%"))
-hl.bind("XF86AudioMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"))
-hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("playerctl play-pause"))
-hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl pause"))
-hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl next"))
-hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"))
-hl.bind("XF86AudioMicMute", hl.dsp.exec_cmd("pactl set-source-mute @DEFAULT_SOURCE@ toggle"))
-hl.bind("XF86Calculator", hl.dsp.exec_cmd("~/.config/ml4w/settings/calculator.sh"))
-hl.bind("XF86Lock", hl.dsp.exec_cmd("hyprlock"))
-hl.bind("XF86Tools", hl.dsp.exec_cmd("alacritty --class dotfiles-floating -e ~/.config/ml4w/apps/ML4W_Dotfiles_Settings-x86_64.AppImage"))
+hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd("brightnessctl -q s +10%"))  -- Increase brightness by 10%
+hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl -q s 10%-"))  -- Reduce brightness by 10%
+hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("pactl set-sink-volume @DEFAULT_SINK@ +5%"))  -- Increase volume by 5%
+hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("pactl set-sink-volume @DEFAULT_SINK@ -5%"))  -- Reduce volume by 5%
+hl.bind("XF86AudioMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"))  -- Toggle mute
+hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("playerctl play-pause"))  -- Audio play pause
+hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl pause"))  -- Audio pause
+hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl next"))  -- Audio next
+hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"))  -- Audio previous
+hl.bind("XF86AudioMicMute", hl.dsp.exec_cmd("pactl set-source-mute @DEFAULT_SOURCE@ toggle"))  -- Toggle microphone
+hl.bind("XF86Calculator", hl.dsp.exec_cmd("~/.config/ml4w/settings/calculator.sh"))  -- Open calculator
+hl.bind("XF86Lock", hl.dsp.exec_cmd("hyprlock"))  -- Open screenlock
+hl.bind("XF86Tools", hl.dsp.exec_cmd("alacritty --class dotfiles-floating -e ~/.config/ml4w/apps/ML4W_Dotfiles_Settings-x86_64.AppImage"))  -- Open ML4W Dotfiles Settings app
 
 hl.bind("code:238", hl.dsp.exec_cmd("brightnessctl -d smc::kbd_backlight s +10"))
 hl.bind("code:237", hl.dsp.exec_cmd("brightnessctl -d smc::kbd_backlight s 10-"))

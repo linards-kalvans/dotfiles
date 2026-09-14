@@ -13,7 +13,7 @@ own inline directives. Counting is not proof of correctness, but it makes the
 Usage: hypr-config-audit [--json]
 Exit 0 if every kind reconciles, 1 otherwise.
 """
-import os, re, sys, json, collections
+import os, re, sys, json, collections, subprocess
 
 H = os.path.expanduser("~/.config/hypr")
 
@@ -139,6 +139,8 @@ def lua_files():
     for base, _, names in os.walk(H):
         if os.sep + "conf" in base:      # skip the hyprlang tree
             continue
+        if os.sep + "tools" in base:     # our own scripts, not config
+            continue
         group = os.path.basename(base)
         for n in names:
             if not n.endswith(".lua"):
@@ -191,6 +193,59 @@ def check_colour_contract(lua_paths):
             if re.search(r"(active_border|inactive_border)\s*=.*\.\.", line):
                 concat.append((f, i, line.strip()[:72]))
     return bare, concat
+
+STUB = "/usr/share/hypr/stubs/hl.meta.lua"
+TYPECHECK = os.path.join(H, "tools", "hypr-lua-typecheck.lua")
+
+def declared_types():
+    """config key -> set of Lua types the API accepts, from HL.ConfigValueTypes."""
+    types, inside = {}, False
+    for line in open(STUB, errors="replace"):
+        if "---@class HL.ConfigValueTypes" in line:
+            inside = True; continue
+        if inside:
+            if line.startswith("local "):
+                break
+            m = re.match(r"---@field\s+\['([^']+)'\]\s+(.+?)\s*$", line)
+            if m:
+                key, decl = m.group(1), m.group(2)
+                accepted = set()
+                for t in decl.split("|"):
+                    t = t.strip()
+                    accepted.add({"integer": "number", "float": "number"}.get(t, t))
+                types[key] = accepted
+    return types
+
+def check_value_types(all_lua):
+    """Every module -- active AND inactive -- loaded under a fake hl, with each
+    emitted config value's Lua type compared against HL.ConfigValueTypes.
+
+    Inactive variations are included deliberately: selecting one in the ML4W
+    Settings app is exactly when a wrongly-typed value bites, and a check that
+    only covered the active set would have missed all seven instances of
+    decoration.shadow.color being emitted as a number instead of a string."""
+    declared = declared_types()
+    bad, unreadable = [], []
+    if not os.path.isfile(TYPECHECK):
+        return bad, unreadable, 0
+    checked = 0
+    for f in all_lua:
+        if os.path.basename(f) in ("colors.lua", "probe.lua"):
+            continue
+        r = subprocess.run(["lua", TYPECHECK, f], capture_output=True, text=True,
+                           stdin=subprocess.DEVNULL, timeout=10)
+        if r.returncode != 0:
+            unreadable.append((f, r.stderr.strip().replace("\t", " ")[:90]))
+            continue
+        checked += 1
+        for line in r.stdout.splitlines():
+            if "\t" not in line:
+                continue
+            key, got = line.split("\t", 1)
+            want = declared.get(key)
+            if want and got not in want:
+                bad.append((f, key, got, "|".join(sorted(want))))
+    return bad, unreadable, checked
 
 def main():
     conf_files = closure(os.path.join(H, "hyprland.conf"))
@@ -257,6 +312,21 @@ def main():
         print(f"  CONCAT      {os.path.basename(f)}:{i}  border built by concatenation;")
         print(f"              Hyprland wants a gradient table {{ colors = {{...}}, angle = ... }}")
         print(f"              {txt}")
+
+    all_lua = sorted(lfiles + inactive)
+    bad_types, unreadable, checked = check_value_types(all_lua)
+    print()
+    print(f"config value types ({checked} modules loaded, active and inactive)")
+    print("-" * 62)
+    if not bad_types and not unreadable:
+        print("  ok — every emitted value matches HL.ConfigValueTypes")
+    for f, key, got, want in bad_types:
+        ok = False
+        rel = os.path.relpath(f, H)
+        print(f"  TYPE  {rel}: {key} is {got}, API declares {want}")
+    for f, err in unreadable:
+        ok = False
+        print(f"  LOAD  {os.path.relpath(f, H)}: {err}")
 
     print()
     print("AUDIT PASS — every directive kind reconciles, colour contract held" if ok

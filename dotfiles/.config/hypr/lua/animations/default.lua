@@ -16,7 +16,7 @@ hl.curve("easeInOutCirc", { type = "bezier", points = { { 0.85, 0 }, { 0.15, 1 }
 hl.curve("easeOutCirc", { type = "bezier", points = { { 0, 0.55 }, { 0.45, 1 } } })
 hl.curve("easeOutExpo", { type = "bezier", points = { { 0.16, 1 }, { 0.3, 1 } } })
 hl.curve("softAcDecel", { type = "bezier", points = { { 0.26, 0.26 }, { 0.15, 1 } } })
-hl.curve("md2", { type = "bezier", points = { { 0.4, 0 }, { 0.2, 1 } } })
+hl.curve("md2", { type = "bezier", points = { { 0.4, 0 }, { 0.2, 1 } } })  -- use with .2s duration
 hl.animation({
     leaf = "windows",
     enabled = true,

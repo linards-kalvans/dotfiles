@@ -28,7 +28,22 @@ hl.config({
             enabled = false,
             range = 30,
             render_power = 3,
-            color = 0x66000000,
+            -- HAND-FIXED (Task 6 fix round 1). Source: `color = 0x66000000`, a hyprlang
+            -- ARGB literal. hyprlang2lua passed it through as a BARE LUA NUMBER, but
+            -- HL.ConfigValueTypes['decoration.shadow.color'] is `string`
+            -- (hl.meta.lua:1003). It would not have failed loudly: CLuaConfigColor::parse
+            -- gates on lua_isstring, which is TRUE for numbers, so lua_tolstring yields
+            -- "1711276032" and ParserUtils::parseColor -- which branches only on a leading
+            -- `#` (cmpb $0x23), `0x` (cmpw $0x7830) or `rgb(`/`rgba(`, verified by
+            -- disassembling /usr/bin/Hyprland -- rejects it as `invalid color`.
+            -- Channel order verified empirically, not assumed: the ACTIVE variation sets
+            -- rgba(00000050) and `hyprctl getoption decoration:shadow:color` reports
+            -- int: 1342177280 = 0x50000000, so rgba(RRGGBBAA)'s AA is the high ARGB byte.
+            -- Hence ARGB 0x66000000 (A=0x66, RGB=0) == rgba(00000066) == 1711276032,
+            -- the same value the source asked for. rgba(...) is used rather than the
+            -- equally-valid "0x66000000" so the whole decorations group shares one idiom
+            -- with default.lua / blur.lua, which already say rgba(00000050).
+            color = "rgba(00000066)",
         },
     },
 })

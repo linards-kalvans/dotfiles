@@ -12,12 +12,13 @@
 --
 -- Four defect classes, all visible against conf/windowrules/default52.conf:
 --
--- 1. SELECTOR PREFIX SWALLOWED (5 rules, lines 9/16/23/30/38 below). The hyprlang
+-- 1. SELECTOR PREFIX SWALLOWED (6 rules, lines 48/55/62/69/77/87 below). The hyprlang
 --    form `windowrule = float, title:^(pavucontrol)$` selects on TITLE. The converter
 --    emitted `match = { class = "title:^(pavucontrol)$" }` -- the `title:` prefix is
 --    kept inside the class VALUE instead of choosing the match field. Correct form is
---    `match = { title = "^(pavucontrol)$" }`. Every one of these 5 rules matches
---    nothing as written.
+--    `match = { title = "^(pavucontrol)$" }`. The same bug hits the `class:` prefix at
+--    line 87, `class = "class:([window])"`, which should be
+--    `match = { class = "([window])" }`. All 6 rules match nothing as written.
 --
 -- 2. RULES MERGED, so counts are not 1:1. Source lines 11/12/13 are three separate
 --    `windowrule` directives for Picture-in-Picture; they became ONE hl.window_rule
@@ -85,7 +86,7 @@ hl.window_rule({
     match = {
         class = "class:([window])",
     },
-    -- TODO: manual review — unmapped window rule action: "idleinhibit fullscreen"
+    -- TODO: manual review — unmapped window rule action: "idleinhibit fullscreen"  -- Available modes: none, always, focus, fullscreen
 })
 
 --xwayland related rules
@@ -106,7 +107,7 @@ hl.window_rule({
 hl.layer_rule({
     match = { namespace = "waybar" },
     blur = true,
-    ignore_alpha = 0.01,
+    ignore_alpha = 0.01,  -- Forces blur on very transparent areas
     -- TODO: manual review — unmapped layer rule: "ignorezero"
 })
 
