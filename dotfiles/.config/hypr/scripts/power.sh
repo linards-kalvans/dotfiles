@@ -41,7 +41,12 @@ if [[ "$1" == "exit" ]]; then
 	echo ":: Exit"
 	terminate_clients
 	sleep 0.5
-	hyprctl dispatch exit
+	# Lua config: `hyprctl dispatch <args>` parses as `return hl.dispatch(<args>)`.
+	# The bare word `exit` would resolve to the (nil) Lua global, not the dispatcher.
+	# Correct form is the zero-arg dispatcher constructor hl.dsp.exit().
+	# Established WITHOUT invoking it: `type(hl.dsp.exit)` == "function", and the
+	# identical zero-arg form `hl.dsp.no_op()` dispatches "ok". 2026-09-15.
+	hyprctl dispatch 'hl.dsp.exit()'
 	sleep 2
 fi
 

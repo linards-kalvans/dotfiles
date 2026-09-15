@@ -28,18 +28,25 @@ hl.bind(mainMod .. " + SHIFT + Q", hl.dsp.exec_cmd("hyprctl activewindow | grep 
 hl.bind(mainMod .. " + F", hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" }))  -- Set active window to fullscreen
 hl.bind(mainMod .. " + M", hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" }))  -- Maximize Window
 hl.bind(mainMod .. " + T", hl.dsp.window.float({ action = "toggle" }))  -- Toggle active windows into floating mode
--- HAND-PORTED (Task 6). hyprlang2lua flagged line 29 and emitted the bind
--- COMMENTED OUT, silently dropping a keybinding -- `-r` still reported
--- coverage=99.1%, and the file parsed clean. Source directive:
---     bind = $mainMod SHIFT, T, workspaceopt, allfloat
--- Hyprland 0.55.4 has NO typed equivalent: HL.DspWorkspaceNamespace exposes only
--- move / rename / swap_monitors / toggle_special (stubs hl.meta.lua:885-890), and
--- there is no hl.dsp.workspaceopt. The dispatcher itself still exists in the
--- compositor (`strings /usr/bin/Hyprland` contains "workspaceopt"), so it is
--- reachable only through hyprctl. Per the converter README, a hyprctl subcommand
--- with no typed mapping stays a literal exec_cmd; this one pays a process spawn
--- per keypress, which is the cost of keeping the binding at all.
-hl.bind(mainMod .. " + SHIFT + T", hl.dsp.exec_cmd("hyprctl dispatch workspaceopt allfloat"))  -- Toggle all windows into floating mode
+-- HAND-PORTED (Task 6), CORRECTED 2026-09-15 (dispatch-compat pass).
+-- Source directive: bind = $mainMod SHIFT, T, workspaceopt, allfloat
+--
+-- The previous note here concluded workspaceopt was "reachable only through
+-- hyprctl" and kept it as a literal exec_cmd. THAT CONCLUSION WAS WRONG.
+-- `hyprctl dispatch` goes through the SAME Lua parser as the config: it wraps its
+-- argument as `return hl.dispatch(<args>)`. So the exec_cmd above expanded to
+-- `return hl.dispatch(workspaceopt allfloat)` -- a Lua syntax error -- and this
+-- keybinding silently did nothing at all under the Lua config.
+--
+-- workspaceopt genuinely has no Lua binding on 0.55.4 (verified by enumerating
+-- the live API: pairs(hl.dsp) and pairs(hl.dsp.workspace) contain no such entry,
+-- and workspaceopt/workspace_opt/workspace.opt/workspace.option are all nil).
+-- The bind now calls the script, which emulates it with
+-- hl.dispatch(function() ... end) + hl.dsp.window.float per window.
+-- Semantics lost: workspaceopt set a workspace-level flag so LATER windows also
+-- floated; the emulation only affects windows present when it runs. See the
+-- script header.
+hl.bind(mainMod .. " + SHIFT + T", hl.dsp.exec_cmd(HYPRSCRIPTS .. "/toggleallfloat.sh"))  -- Toggle all windows into floating mode
 hl.bind(mainMod .. " + J", hl.dsp.layout("togglesplit"))  -- Toggle split
 hl.bind(mainMod .. " + left", hl.dsp.focus({ direction = "left" }))  -- Move focus left
 hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "right" }))  -- Move focus right

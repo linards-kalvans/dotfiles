@@ -36,12 +36,20 @@ window_addresses=$(hyprctl clients -j | jq -r ".[] | select(.workspace.id == $cu
 # Move each window to the target workspace
 for address in $window_addresses; do
     log_message "Moving window $address to workspace $target_workspace"
-    hyprctl dispatch movetoworkspacesilent "$target_workspace,address:$address"
+    # Lua config: `movetoworkspacesilent "<ws>,address:<a>"` has no direct Lua name.
+    # It is hl.dsp.window.move with follow = false.
+    # NOTE: `silent = true` is NOT the key -- hl.window.move accepts the table and
+    # returns "ok" but silently IGNORES an unknown `silent` key, so the view still
+    # follows the window. Proven by controlled A/B on 2026-09-15:
+    #   control (no flag) -> activeWS 7 -> 4  FOLLOWED
+    #   silent = true     -> activeWS 7 -> 4  FOLLOWED
+    #   follow = false    -> activeWS 7 -> 7  SILENT
+    hyprctl dispatch "hl.dsp.window.move({ window = \"address:$address\", workspace = \"$target_workspace\", follow = false })"
 done
 
 log_message "Finished moving windows"
 
 # Switch to the target workspace
-hyprctl dispatch workspace "$target_workspace"
+hyprctl dispatch "hl.dsp.focus({ workspace = \"$target_workspace\" })"
 
 log_message "Switched to workspace $target_workspace"

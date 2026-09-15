@@ -76,13 +76,18 @@ if [ -n "$selected_line" ]; then
     fi
 
     # Switch to the selected window's workspace
-    hyprctl dispatch workspace "$selected_workspace_id"
+    # Lua config: `hyprctl dispatch <args>` parses as `return hl.dispatch(<args>)`,
+    # so the old `workspace <id>` word syntax is a Lua syntax error. $selected_workspace_id
+    # is validated numeric above, so it is safe to interpolate unquoted into the table.
+    hyprctl dispatch "hl.dsp.focus({ workspace = $selected_workspace_id })"
 
     # Add a small delay to ensure Hyprland processes the workspace change before focusing
     sleep 0.05 
 
     # Focus on the selected window using its unique address
-    hyprctl dispatch focuswindow "address:$selected_address"
+    # `focuswindow address:X` -> hl.dsp.focus({ window = "address:X" }); the inner
+    # double quotes are escaped for the shell, which is itself inside "..." here.
+    hyprctl dispatch "hl.dsp.focus({ window = \"address:$selected_address\" })"
 else
     echo "No window selected. Exiting."
 fi

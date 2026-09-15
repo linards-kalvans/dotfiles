@@ -8,8 +8,22 @@
 {
   // Workspaces
   "hyprland/workspaces": {
-    "on-scroll-up": "hyprctl dispatch workspace r-1",
-    "on-scroll-down": "hyprctl dispatch workspace r+1",
+    // Lua config (Hyprland 0.55.4): `hyprctl dispatch <args>` is parsed as the Lua
+    // expression `return hl.dispatch(<args>)`, so the old hyprlang word syntax
+    // ("workspace r-1") is a Lua syntax error. Scroll actions ARE shell commands
+    // run by waybar, so they are fixable here. Verified live 2026-09-15.
+    "on-scroll-up": "hyprctl dispatch 'hl.dsp.focus({ workspace = \"r-1\" })'",
+    "on-scroll-down": "hyprctl dispatch 'hl.dsp.focus({ workspace = \"r+1\" })'",
+    // NOT FIXABLE FROM CONFIG on waybar 0.15.0 -- left as-is deliberately.
+    // This key is inert for hyprland/workspaces: Workspace::handleClicked is wired
+    // directly to each button's signal_button_press_event and never consults
+    // on-click, and AModule applies no {id}/{name} substitution to an on-click
+    // command -- so no explicit command can be made per-workspace. The built-in
+    // click sends the literal legacy IPC string "dispatch workspace <id>" straight
+    // down Hyprland's socket, which a Lua config rejects. Clicking workspace
+    // buttons therefore cannot work until waybar emits Lua (or the ext/workspaces
+    // module is adopted, which uses the ext_workspace_v1 Wayland protocol instead
+    // of Hyprland IPC). See dispatch-compat-report.md.
     "on-click": "activate",
     "active-only": false,
     "all-outputs": true,
