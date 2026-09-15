@@ -141,7 +141,12 @@ hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl next"))  -- Audio next
 hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"))  -- Audio previous
 hl.bind("XF86AudioMicMute", hl.dsp.exec_cmd("pactl set-source-mute @DEFAULT_SOURCE@ toggle"))  -- Toggle microphone
 hl.bind("XF86Calculator", hl.dsp.exec_cmd("~/.config/ml4w/settings/calculator.sh"))  -- Open calculator
-hl.bind("XF86Lock", hl.dsp.exec_cmd("hyprlock"))  -- Open screenlock
+-- REMOVED (Task 11, post-flip): ML4W stock binds `XF86Lock` here, but that keysym does not
+-- exist -- it is absent from /usr/include/X11/XF86keysym.h entirely. hyprlang stored the
+-- bind with keycode=0, so it could never fire; Lua rejects it outright and raised a config
+-- error overlay. Behaviour is identical either way (no key triggers it), but Lua is loud.
+-- Screen locking is already bound to SUPER+L in lua/custom.lua.
+--   original: hl.bind("XF86Lock", hl.dsp.exec_cmd("hyprlock"))  -- Open screenlock
 hl.bind("XF86Tools", hl.dsp.exec_cmd("alacritty --class dotfiles-floating -e ~/.config/ml4w/apps/ML4W_Dotfiles_Settings-x86_64.AppImage"))  -- Open ML4W Dotfiles Settings app
 
 hl.bind("code:238", hl.dsp.exec_cmd("brightnessctl -d smc::kbd_backlight s +10"))

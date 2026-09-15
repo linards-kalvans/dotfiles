@@ -80,6 +80,14 @@ DROPPED = {"workspace_rule": "workspace-to-monitor pinning dropped at user reque
 # read "21 vs 21 ok". Every entry must say WHY, and the expected Lua count is
 # hyprlang + delta. Anything else fails.
 MAPPING_DELTA = {
+    "bind": (
+        -1,
+        "conf/keybindings/default.conf:133 binds XF86Lock, which is not a real keysym -- it does "
+        "not appear in /usr/include/X11/XF86keysym.h at all. hyprlang stored the bind with "
+        "keycode=0 (present in the baseline dump, unable to fire); Lua rejects it outright and "
+        "raised a config-error overlay at the first flip. Deliberately dropped from the Lua tree: "
+        "behaviour is identical (no key triggers it either way) and SUPER+L already locks.",
+    ),
     "exec": (
         1,
         "autostart.conf:41 `exec =` re-runs on config reload, unlike exec-once. "
