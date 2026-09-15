@@ -154,6 +154,12 @@ def lua_files():
             if not n.endswith(".lua"):
                 continue
             full = os.path.join(base, n)
+            # hyprland.lua is the ENTRY POINT -- a symlink to main.lua created by
+            # hypr-config-mode. It is the root of the require graph, not a module
+            # within it, so counting it makes the reachability check report the
+            # entry point as unreachable from itself.
+            if n == "hyprland.lua" and base == H:
+                continue
             if group in active and n[:-4] != active[group]:
                 skipped.append(full)     # inactive variation -- not loaded
                 continue
