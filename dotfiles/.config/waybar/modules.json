@@ -7,6 +7,32 @@
 //
 {
   // Workspaces
+  // Workspaces via the ext_workspace_manager_v1 Wayland protocol.
+  //
+  // Replaces hyprland/workspaces, whose CLICK handling is unusable under a Lua
+  // Hyprland config: waybar 0.15.0 wires Workspace::handleClicked directly to the
+  // button, never consults "on-click", and emits the legacy IPC string
+  // `dispatch workspace N` itself. Hyprland parses dispatch arguments as Lua, so
+  // every click is rejected with a syntax error. That is compiled into waybar and
+  // cannot be fixed from configuration -- see Alexays/Waybar#5008.
+  //
+  // ext/workspaces talks the Wayland protocol directly and never touches Hyprland
+  // IPC, so it is unaffected. Both Hyprland 0.55.4 and waybar 0.15.0 implement it.
+  "ext/workspaces": {
+    "format": "{icon}",
+    "format-icons": {
+      "urgent": "",
+      "active": "",
+      "default": ""
+    },
+    "all-outputs": true,
+    "active-only": false,
+    "sort-by-id": true,
+    "persistent-workspaces": {
+      "*": 3
+    }
+  },
+
   "hyprland/workspaces": {
     // Lua config (Hyprland 0.55.4): `hyprctl dispatch <args>` is parsed as the Lua
     // expression `return hl.dispatch(<args>)`, so the old hyprlang word syntax

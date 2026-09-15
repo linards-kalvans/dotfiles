@@ -14,7 +14,7 @@
     // Modules Left
     "modules-left": [
         "custom/appmenu",
-        "hyprland/workspaces",
+        "ext/workspaces",
         "group/links",
         "wlr/taskbar",
         //"group/quicklinks",
