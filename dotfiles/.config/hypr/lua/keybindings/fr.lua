@@ -45,8 +45,40 @@ hl.bind(mainMod .. " + left", hl.dsp.focus({ direction = "left" }))  -- Move foc
 hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "right" }))  -- Move focus right
 hl.bind(mainMod .. " + up", hl.dsp.focus({ direction = "up" }))  -- Move focus up
 hl.bind(mainMod .. " + down", hl.dsp.focus({ direction = "down" }))  -- Move focus down
-hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag())  -- Move window with the mouse
-hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize())  -- Resize window with the mouse
+-- HAND-FIXED (Task 6 fix round 2). Source directives are `bindm`, the mouse-bind
+-- flag. hyprlang2lua emitted them as ordinary hl.bind calls with no option table,
+-- which registered them as press binds: live `hyprctl -j binds` showed
+-- `key=mouse:272 mouse=false` against the hyprlang baseline's `mouse=true`, so
+-- SUPER+drag to move and SUPER+right-drag to resize stopped behaving as held drags.
+-- The option is `{ mouse = true }`, per the annotated upstream example at
+-- /usr/share/hypr/hyprland.lua:290-291. NOTE: HL.BindOptions in the 0.55.4 stubs does
+-- NOT declare a `mouse` field -- it has `click` and `drag`, which are different
+-- concepts -- so the stub is incomplete here and the shipped example is the better
+-- authority, and `{ mouse = true }` is kept here because it is the documented form and
+-- becomes effective the moment Hyprland implements it.
+--
+-- BUT MEASURED ON 0.55.4 IT IS INERT, and this is NOT yet fixed. After applying it and
+-- `hyprctl reload`, live `hyprctl -j binds` still reports mouse=false. Reason, established
+-- by enumerating every .rodata string referenced from
+-- Config::Lua::Bindings::Internal::registerToplevelBindings (the Lua bind registrar):
+-- it reads 15 option names -- repeating, locked, release, non_consuming, auto_consuming,
+-- transparent, ignore_mods, dont_inhibit, long_press, submap_universal, click, drag,
+-- description, desc, device -- i.e. exactly HL.BindOptions, and `mouse` is NOT among them.
+-- The binary does contain `hl.bind: mouse is exclusive`, but that guard is fed by other
+-- flags; the option name itself is never read from the Lua table. `{ mouse = true, click =
+-- true }` does not trip the exclusivity error either, confirming it is never parsed.
+-- So /usr/share/hypr/hyprland.lua documents an option this build does not implement.
+--
+-- HOW BAD: probably less than the flag suggests. CKeybindManager::onMouseEvent builds the
+-- key string "mouse:" + button number at runtime and matches binds BY THAT STRING (visible
+-- at 0x6c2c8a), so these binds are still found and still fire. What the flag governs is the
+-- press/release held-drag handling, not whether the bind matches. Whether SUPER+drag still
+-- moves a window therefore needs a ten-second behavioural test, not a flag read.
+-- If it is genuinely broken, the options actually implemented here are `drag` and `click`
+-- (mutually exclusive -- the binary carries `hl.bind: click and drag are exclusive`);
+-- `{ drag = true }` is the candidate, deliberately NOT applied blind to a live session.
+hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag(), { mouse = true })  -- Move window with the mouse
+hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })  -- Resize window with the mouse
 hl.bind(mainMod .. " + SHIFT + right", hl.dsp.window.resize({ x = 100, y = 0, relative = true }))  -- Increase window width with keyboard
 hl.bind(mainMod .. " + SHIFT + left", hl.dsp.window.resize({ x = -100, y = 0, relative = true }))  -- Reduce window width with keyboard
 hl.bind(mainMod .. " + SHIFT + down", hl.dsp.window.resize({ x = 0, y = 100, relative = true }))  -- Increase window height with keyboard
@@ -149,5 +181,25 @@ hl.bind("XF86Calculator", hl.dsp.exec_cmd("~/.config/ml4w/settings/calculator.sh
 --   original: hl.bind("XF86Lock", hl.dsp.exec_cmd("hyprlock"))  -- Open screenlock
 hl.bind("XF86Tools", hl.dsp.exec_cmd("alacritty --class dotfiles-floating -e ~/.config/ml4w/apps/ML4W_Dotfiles_Settings-x86_64.AppImage"))  -- Open ML4W Dotfiles Settings app
 
-hl.bind("code:238", hl.dsp.exec_cmd("brightnessctl -d smc::kbd_backlight s +10"))
-hl.bind("code:237", hl.dsp.exec_cmd("brightnessctl -d smc::kbd_backlight s 10-"))
+-- HAND-FIXED (Task 6 fix round 2). Source is `bind = , code:238, ...` / `code:237`,
+-- raw xkb keycodes for the keyboard-backlight keys.
+--
+-- Hyprland 0.55.4's Lua hl.bind CANNOT express a raw keycode. `hl.bind("code:238", ...)`
+-- is accepted -- it returns ok, raises no error and writes no TODO -- but registers a
+-- DEAD bind: live `hyprctl -j binds` reports `key='' keycode=0`, i.e. nothing to match
+-- on, so the keys did nothing. Measured over `hyprctl eval`, every form behaves the
+-- same way: code:0, code:1, code:5, code:9, code:38, code:190, code:238 all yield
+-- keycode=0. `code:` IS specially recognised and is case-sensitive (`CODE:190` and a
+-- bare `190` both fail with `Unknown keysym`), and the prefix check lives in
+-- Config::Lua::Bindings::Internal::registerToplevelBindings -- so this is the Lua path
+-- parsing the prefix and then discarding the keycode, not an unsupported syntax.
+--
+-- Expressed by KEYSYM instead, which is exact rather than a guess. The live keymap
+-- (`xkbcli compile-keymap --layout lv --variant apostrophe`) maps:
+--     <I238> = 238;  key <I238> { [ XF86KbdBrightnessUp ] };
+--     <I237> = 237;  key <I237> { [ XF86KbdBrightnessDown ] };
+-- Both keysyms are accepted by hl.bind and register with the key name set. A keysym
+-- bind reports keycode=0 too, but WITH `key` populated -- that is normal and is how
+-- every other keysym bind in this file already works; the broken form had neither.
+hl.bind("XF86KbdBrightnessUp", hl.dsp.exec_cmd("brightnessctl -d smc::kbd_backlight s +10"))
+hl.bind("XF86KbdBrightnessDown", hl.dsp.exec_cmd("brightnessctl -d smc::kbd_backlight s 10-"))
