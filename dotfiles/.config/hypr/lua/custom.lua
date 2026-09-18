@@ -11,6 +11,18 @@ hl.config({
         gaps_in  = 2,
         gaps_out = 2,
     },
+    -- Safety net for the blank-wake fault, see
+    -- linux-debug/suspend-blank-screen-after-auto-suspend-2026-09-18.md.
+    -- After a hypridle-initiated `systemctl suspend`, nothing re-issues DPMS-on, and with
+    -- both of these at their Hyprland defaults (false) no keystroke or mouse move can get
+    -- the outputs back either -- all three panels stay dark until the dock drops.
+    -- Overridden here rather than in lua/misc.lua: that module is a 1:1 port of ML4W's
+    -- conf/misc.conf and asserts its own directive count against it.
+    -- Mirrors the misc block in conf/custom.conf. Revert by deleting these two keys.
+    misc = {
+        key_press_enables_dpms  = true,
+        mouse_move_enables_dpms = true,
+    },
 })
 
 hl.env("SDL_VIDEODRIVER", "wayland")
