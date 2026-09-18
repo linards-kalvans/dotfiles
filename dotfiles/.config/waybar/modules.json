@@ -20,7 +20,7 @@
       "default": ""
     },
     "persistent-workspaces": {
-      "*": 5
+            "*": 3
     }
   },
   // Taskbar
@@ -52,7 +52,8 @@
       "(.*) - Outlook": "$1",
       "(.*) Microsoft Teams": "$1"
     },
-    "separate-outputs": true
+    "separate-outputs": true,
+    "max-length": 120
   },
   // ML4W Welcome App
   "custom/ml4w-welcome": {
@@ -69,21 +70,6 @@
     "format": "",
     "tooltip-format": "Tools"
   },
-
-  // Now Playing
-  "custom/nowplaying": {
-    "exec": "~/.config/ml4w/scripts/now-playing.sh",
-    "format": "  {text}",
-    "return-type": "json",
-    "interval": 1,
-    "escape": true,
-    "hide-empty-text": false,
-    "on-click": "playerctl play-pause",
-    "on-click-right": "playerctl next",
-    "on-click-middle": "playerctl previous",
-    "tooltip-format": "Left: Play/Pause\nRight: Next\nMiddle: Previous"
-  },
-  
   // Cliphist
   "custom/cliphist": {
     "format": "",
@@ -93,7 +79,7 @@
     "tooltip-format": "Left: Open clipboard Manager\nRight: Delete an entry\nMiddle: Clear list"
   },
   // Updates Count
-  "custom/updates": {
+   "custom/updates": {
     "format": "  {}",
     "escape": true,
     "return-type": "json",
@@ -145,7 +131,7 @@
     // START APPS LABEL
     "format": "Apps",
     // END APPS LABEL
-    "on-click": "~/.config/hypr/scripts/launcher.sh",
+    "on-click": "sleep 0.2;pkill rofi || rofi -show drun -replace",
     "on-click-right": "~/.config/hypr/scripts/keybindings.sh",
     "tooltip-format": "Left: Open the application launcher\nRight: Show all keybindings"
   },
@@ -218,10 +204,11 @@
   },
   // Clock
   "clock": {
-    "format": "{:%H:%M %a}",
+    "format": "{:%Od.%Om.%Y, %H:%M:%S}",
     "on-click": "flatpak run com.ml4w.calendar",
     "timezone": "",
-    "tooltip": false
+    "tooltip": false,
+    "interval": 1
   },
   // System
   "custom/system": {
@@ -305,16 +292,17 @@
   // Network
   "network": {
     "format": "{ifname}",
-    "format-wifi": " {signalStrength}%",
-    "format-ethernet": "  {ifname}",
+    "format-wifi": " {signalStrength}%  ⇧ {bandwidthUpBytes} ⇩ {bandwidthDownBytes}",
+    "format-ethernet": "  ⇧ {bandwidthUpBytes} ⇩ {bandwidthDownBytes}",
     "format-disconnected": "Disconnected ⚠",
-    "tooltip-format": " {ifname} via {gwaddri}",
+    "tooltip-format": " {ifname} via {gwaddri}",
     "tooltip-format-wifi": "  {ifname} @ {essid}\nIP: {ipaddr}\nStrength: {signalStrength}%\nFreq: {frequency}MHz\nUp: {bandwidthUpBits} Down: {bandwidthDownBits}",
-    "tooltip-format-ethernet": " {ifname}\nIP: {ipaddr}\n up: {bandwidthUpBits} down: {bandwidthDownBits}",
+    "tooltip-format-ethernet": " {ifname}\nIP: {ipaddr}\n up: {bandwidthUpBytes} down: {bandwidthDownBytes}",
     "tooltip-format-disconnected": "Disconnected",
-    "max-length": 50,
+    "max-length": 90,
     "on-click": "~/.config/ml4w/settings/networkmanager.sh",
     "on-click-right": "~/.config/ml4w/scripts/nm-applet.sh toggle",
+    "interval": 1
   },
   // Battery
   "battery": {
@@ -376,15 +364,26 @@
   },
   // Bluetooth
   "bluetooth": {
-  "format": " {status}",
-  "format-disabled": "",
-  "format-off": "",
-  "interval": 30,
-  "on-click": "sleep 0.1 && ~/.config/ml4w/settings/bluetooth.sh",
-  "tooltip-format-connected": "Connected devices: {num_connections} connected\n\n{device_enumerate}",
-  "tooltip-format-enumerate-connected": "{device_alias}",
-  "tooltip-format-enumerate-connected-battery": "{device_alias}\t| Battery life: {device_battery_percentage}%",
-  "format-no-controller": ""
+    "format": "",
+    "format-disabled": "",
+    "format-off": "",
+    "interval": 30,
+    "on-click": "sleep 0.1 && ~/.config/ml4w/settings/bluetooth.sh",
+    "format-no-controller": "",
+    "format-connected-battery": " {icon} {device_battery_percentage}%",
+    "format-device-preference": ["Oleap Pilot", "HP 435 Wireless Mouse", "MX KEYS S"],
+    "tooltip-format-connected-battery": "{device_enumerate}",
+    "tooltip-format-enumerate-connected-battery": "{device_alias} {icon} {device_battery_percentage}%",
+    "format-icons": [
+      " ",
+      " ",
+      " ",
+      " ",
+      " "
+    ]
+//    "format-icons": {
+//        "HP 435 Wireless Mouse": ""
+//    }
   },
   // Other
   "user": {

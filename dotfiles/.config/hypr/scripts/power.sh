@@ -76,3 +76,9 @@ if [[ "$1" == "hibernate" ]]; then
 	sleep 1
 	systemctl hibernate
 fi
+
+if [[ "$1" == "hybrid-sleep" ]]; then
+	echo ":: Hybrid Sleep"
+	sleep 1
+	systemctl hybrid-sleep
+fi

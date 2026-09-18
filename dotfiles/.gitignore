@@ -1,0 +1,7 @@
+# runtime noise
+**/nohup.out
+*.zip
+# another machine's config, checked in by accident
+.config/dell-config/
+# caches and state that should not be versioned
+.config/**/cache/

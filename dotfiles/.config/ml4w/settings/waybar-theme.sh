@@ -1,1 +1,1 @@
-/ml4w-glass;/ml4w-glass/default
+/ml4w-minimal;/ml4w-minimal

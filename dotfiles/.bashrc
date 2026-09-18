@@ -35,3 +35,7 @@ done
 if [ -f ~/.bashrc_custom ]; then
     source ~/.bashrc_custom
 fi
+
+# >>> Codex installer >>>
+export PATH="/home/linards/.local/bin:$PATH"
+# <<< Codex installer <<<
