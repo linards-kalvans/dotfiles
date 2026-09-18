@@ -1,0 +1,24 @@
+[Unit]
+# Re-enable Hyprland DPMS after resume.
+#
+# hypridle's own after_sleep_cmd does not run for a suspend hypridle itself requested via
+# `systemctl suspend`, so after an automatic suspend every output stays dark with no way
+# back from the keyboard. See
+# linux-debug/suspend-blank-screen-after-auto-suspend-2026-09-18.md.
+#
+# Watches logind's PrepareForSleep signal directly: the systemd --user manager has no
+# sleep.target to hang a oneshot off, and this path does not depend on hypridle at all.
+#
+# Disable with: systemctl --user disable --now dpms-on-resume.service
+Description=Re-enable Hyprland DPMS after resume
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.config/hypr/scripts/dpms-on-resume-watch.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
