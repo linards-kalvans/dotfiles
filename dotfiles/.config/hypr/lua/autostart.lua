@@ -93,6 +93,16 @@ hl.on("hyprland.start", function()
     -- Background services, no workspace placement (from conf/custom.conf)
     hl.exec_cmd("/opt/pcloud/pcloud-drive.AppImage")
     hl.exec_cmd("solaar -w hide")
+
+    -- Wallpaper bring-up + rotation (interval from ml4w/settings/wallpaper-automation.sh).
+    -- Supersedes the `swww-daemon` and `wallpaper-restore.sh` spawns above, which
+    -- race: swww-daemon exits if it cannot
+    -- bind the outputs this early, and wallpaper-restore.sh then calls waypaper against
+    -- a dead socket and fails silently. Those two are left in place (they are a 1:1 port
+    -- of ML4W's conf/autostart.conf); this script is idempotent and repairs whatever
+    -- they left behind. Mirror of conf/custom.conf; keep the two in sync.
+    -- Revert by deleting this call.
+    hl.exec_cmd("~/.config/hypr/scripts/wallpaper-boot.sh")
 end)
 
 -- Reload half of conf/autostart.conf:41's `exec` directive (see header comment for full

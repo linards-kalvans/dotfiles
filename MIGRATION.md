@@ -26,6 +26,7 @@ and in comments at the point of change.
 | `PrepareForSleep` DPMS watcher | `.config/hypr/scripts/dpms-on-resume-watch.sh`, `.config/systemd/user/dpms-on-resume.service` | `systemd --user` has no `sleep.target`, so a user unit ordered against it never starts |
 | wlogout scale arithmetic | `.config/ml4w/scripts/wlogout.sh` | Hyprland 0.56.2 prints an integral `scale` as `1`, not `1.00`; ML4W's `sed 's/\.//'` fixed-point idiom then errs by 100× and wlogout core-dumps before mapping |
 | `ext/workspaces` format | `.config/waybar/modules.json` | That module matches `format-icons` by workspace **name**, unlike `hyprland/workspaces` which keys by state; the inherited icon map rendered every button empty |
+| Wallpaper bring-up + rotation | `.config/hypr/scripts/wallpaper-boot.sh`, `.config/hypr/scripts/wallpaper-set.sh`, `.config/hypr/conf/custom.conf`, `.config/hypr/lua/autostart.lua`, `.config/ml4w/settings/wallpaper-automation.sh` | ML4W's autostart spawns `swww-daemon` and `wallpaper-restore.sh` back to back with no readiness check, so the daemon can exit before it binds the outputs and the desktop stays black with nothing logged. `wallpaper-boot.sh` waits for `swww query` to answer first, then runs the rotation loop itself — ML4W's `wallpaper-automation.sh` is a toggle keyed on a `~/.cache` flag that survives reboot, so from an autostart entry it turns rotation *off* every other boot. `wallpaper-set.sh` also keeps working when `waypaper` cannot start |
 
 ---
 
@@ -119,6 +120,7 @@ Everything below describes `eleving-arch-lk` and will be wrong elsewhere.
 | **Keyboard layout** | `.config/hypr/conf/custom.conf`, `.config/hypr/lua/custom.lua` | `kb_layout = lv`, `kb_variant = apostrophe` |
 | **Autostart apps** | `.config/hypr/conf/custom.conf`, `.config/hypr/lua/autostart.lua` | Two Brave PWA `--app-id=` values, `zen-browser --profile /home/linards/.config/zen-linards`, `/opt/pcloud/pcloud-drive.AppImage`, `solaar -w hide`. All host-installed paths |
 | **Wallpaper state** | `.config/waypaper/config.ini`, `.config/hypr/hyprpaper.conf` | Absolute paths to the chosen wallpaper |
+| **Wallpaper rotation interval** | `.config/ml4w/settings/wallpaper-automation.sh` | `14400` (4 h) here. ML4W's stock `60` fires a full matugen retheme and a waybar + nwg-dock relaunch every minute, and rewrites the tracked colour files 1440 times a day |
 | **GTK bookmarks** | — | Deliberately **not** carried; the original referenced an internal host. Gitignored |
 
 ### Username
