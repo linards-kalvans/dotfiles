@@ -19,15 +19,21 @@
   // ext/workspaces talks the Wayland protocol directly and never touches Hyprland
   // IPC, so it is unaffected. Both Hyprland 0.55.4 and waybar 0.15.0 implement it.
   "ext/workspaces": {
-    "format": "{icon}",
-    "format-icons": {
-      "urgent": "",
-      "active": "",
-      "default": ""
-    },
+    // format "{name}" per waybar-ext-workspaces(5): this module matches
+    // format-icons by workspace NAME, with only "default" and "active" as
+    // special keys -- unlike hyprland/workspaces, which keys purely by state.
+    // Using "{icon}" with state-style keys rendered every button empty.
+    "format": "{name}",
+    "on-click": "activate",
+    // all-outputs shows every monitor's workspace group, and each group has its
+    // own active workspace -- so with 3 monitors, 3 buttons legitimately render
+    // as active. hyprland/workspaces collapsed that to one. Set false to show
+    // only the focused output's workspaces if the multi-active look is unwanted.
     "all-outputs": true,
     "active-only": false,
-    "sort-by-id": true,
+    // sort-by-id sorts by the protocol's workspace id, which is not necessarily
+    // numeric here; sort-by-name sorts numerically when all names are numbers.
+    "sort-by-name": true,
     "persistent-workspaces": {
       "*": 3
     }
