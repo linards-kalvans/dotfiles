@@ -19,7 +19,7 @@ and in comments at the point of change.
 
 | Fix | Files | Why |
 |---|---|---|
-| Monitor layout pinned by `desc:` | `.config/hypr/conf/monitors/desc-pinned.conf`, `.config/hypr/lua/monitors_pin.lua`, `.config/hypr/main.lua` | DP-MST recreates its connectors on every topology change, so `DP-5`/`DP-6` become `DP-7`/`DP-8` and a name-based layout silently stops applying |
+| Per-dock monitor layout memory | `.config/hypr/scripts/monitor-pin.py`, `.config/hypr/monitor-pins.conf`, `.config/hypr/conf/custom.conf`, `.config/hypr/lua/autostart.lua`, `.config/hypr/main.lua` | DP-MST recreates its connectors on every topology change, so `DP-5`/`DP-6` become `DP-7`/`DP-8` and a name-based layout silently stops applying. Pinning by `desc:` *inside* the sourced config does not work either: nwg-displays applies a layout by writing the generated monitors file and Hyprland auto-reloads on that write, so the pin is re-applied by that same reload and clobbers the GUI change — and any `hyprctl reload` (matugen runs one per wallpaper change) resets the layout to the other site's. `monitor-pin.py` pushes the layout imperatively on dock events instead, learns it back after 20 s of quiet, and keeps a profile per set of monitor descriptions in `~/.local/state/hypr/monitor-profiles.json`. Replaces the earlier `desc-pinned.conf` / `monitors_pin.lua` |
 | `hl.dsp.dpms` takes a **table** | `.config/hypr/hypridle.conf`, `.config/hypr/scripts/dpms-on.sh` | `hl.dsp.dpms("on")` returns `ok` and switches the outputs **off**. A success return proves nothing — verify with `hyprctl -j monitors \| jq '.[].dpmsStatus'` |
 | `on-resume` on the suspend listener | `.config/hypr/hypridle.conf` | For a suspend hypridle requests itself, its own `before_sleep_cmd`/`after_sleep_cmd` never run |
 | DPMS wake from key/mouse | `.config/hypr/conf/custom.conf`, `.config/hypr/lua/custom.lua` | Both default to `false`, so once outputs are DPMS-off nothing on the keyboard can bring them back |
@@ -27,6 +27,9 @@ and in comments at the point of change.
 | wlogout scale arithmetic | `.config/ml4w/scripts/wlogout.sh` | Hyprland 0.56.2 prints an integral `scale` as `1`, not `1.00`; ML4W's `sed 's/\.//'` fixed-point idiom then errs by 100× and wlogout core-dumps before mapping |
 | `ext/workspaces` format | `.config/waybar/modules.json` | That module matches `format-icons` by workspace **name**, unlike `hyprland/workspaces` which keys by state; the inherited icon map rendered every button empty |
 | Wallpaper bring-up + rotation | `.config/hypr/scripts/wallpaper-boot.sh`, `.config/hypr/scripts/wallpaper-set.sh`, `.config/hypr/conf/custom.conf`, `.config/hypr/lua/autostart.lua`, `.config/ml4w/settings/wallpaper-automation.sh` | ML4W's autostart spawns `swww-daemon` and `wallpaper-restore.sh` back to back with no readiness check, so the daemon can exit before it binds the outputs and the desktop stays black with nothing logged. `wallpaper-boot.sh` waits for `swww query` to answer first, then runs the rotation loop itself — ML4W's `wallpaper-automation.sh` is a toggle keyed on a `~/.cache` flag that survives reboot, so from an autostart entry it turns rotation *off* every other boot. `wallpaper-set.sh` also keeps working when `waypaper` cannot start |
+| brightnessctl save-slot guard | `.config/hypr/scripts/backlight-dim.sh`, `.config/hypr/scripts/backlight-restore.sh`, `.config/hypr/hypridle.conf`, `.config/hypr/scripts/dpms-on.sh` | brightnessctl keeps **one** save cell per device: `-s` writes the current level into it *before* applying the operation and `-r` never clears it. One `-s` taken while already dim latches the dim value, and every later `-r` — including the one on every resume — restores to near-black permanently. The wrappers save only a brighter level and restore only when the saved level is brighter than the current one |
+| Taskbar cannot be capped, only shrunk | `.config/waybar/modules.json`, `.config/waybar/themes/ml4w-minimal/style-custom.css` | waybar 0.15.0 links GTK3, which implements `min-width` only. An invalid CSS property aborts the **whole** stylesheet and waybar exits, so a plausible-looking `max-width` reads as an unrelated crash. Buttons are made narrow instead, and `hyprland/window` ellipsizes at 30 so the title absorbs overflow before the clock and tray are pushed off |
+| hyprlock blur and avatar | `.config/hypr/hyprlock.conf`, `.config/ml4w/assets/avatar.png` | ML4W's cached `blurred_wallpaper.png` is only blurred when `settings/blur.sh` is set, and that setting is shared with rofi and wlogout — so hyprlock blurs on its own GPU-side instead. The avatar was `square_wallpaper.png`, a crop of the current wallpaper that `wallpaper.sh` rewrites on every change; it now lives outside that cache. The two label colours moved from `#ffffff` to `rgb(ffffff)` because hyprlang reads `#` as a comment start |
 
 ---
 
@@ -114,8 +117,11 @@ Everything below describes `eleving-arch-lk` and will be wrong elsewhere.
 
 | What | Where | Action on the new machine |
 |---|---|---|
-| **Monitor identities** | `.config/hypr/conf/monitors/desc-pinned.conf`, `.config/hypr/lua/monitors_pin.lua` | Replace the two `desc:` strings (`Dell Inc. DELL P2314H J8J314CFB2YS`, `Dell Inc. DELL E2420HS DXG3X03`) with this machine's. Read them from `hyprctl monitors \| grep description`. If the new machine has no MST dock, drop both files and point `main.lua` back at `require("monitors")` |
-| **Generated monitor layout** | `.config/hypr/monitors.conf`, `.config/hypr/monitors.lua` | nwg-displays output for this host's three screens. Just run `nwg-displays` on the target and let it regenerate |
+| **Monitor identities** | `.config/hypr/monitor-pins.conf` | Cold-start rules for this host's two docks, keyed by monitor description and serial (two Dell panels at home, three HP panels across two office desks). Replace the `desc:` strings with this machine's, read from `hyprctl monitors \| grep description`. Same-model panels need the serial to tell them apart. A rule naming an absent output is accepted and ignored, so unused rows are harmless. If the new machine never docks, delete the file and drop the `monitor-pin.py` `exec-once` from `conf/custom.conf` and the `hl.exec_cmd` from `lua/autostart.lua` |
+| **Generated monitor layout** | `.config/hypr/monitors.conf`, `.config/hypr/monitors.lua` | nwg-displays output for this host's three screens — as of 2026-10-15 the office DisplayLink pair (`DVI-I-1`/`DVI-I-2`), not the home dock. Just run `nwg-displays` on the target and let it regenerate |
+| **Learned monitor profiles** | `~/.local/state/hypr/monitor-profiles.json` | Not in the repo and not carried. `monitor-pin.py` writes it per set of monitor descriptions; on a new machine it starts empty and the first layout is learned from `monitor-pins.conf`. Delete it to forget a bad learned layout |
+| **hypridle hook paths** | `.config/hypr/hypridle.conf` | hypridle does not expand `~`, so the two backlight wrapper paths are absolute and name this user. Covered by the `sed` under [Username](#username) |
+| **Avatar** | `.config/ml4w/assets/avatar.png` | A photo of this user, rendered by hyprlock. Replace it; `blank.png` beside it is the stock ML4W placeholder |
 | **Left-handed mouse** | `.config/hypr/conf/custom.conf`, `.config/hypr/lua/custom.lua` | `left_handed = true` is deliberate here. Remove it unless the new user is also left-handed |
 | **Keyboard layout** | `.config/hypr/conf/custom.conf`, `.config/hypr/lua/custom.lua` | `kb_layout = lv`, `kb_variant = apostrophe` |
 | **Autostart apps** | `.config/hypr/conf/custom.conf`, `.config/hypr/lua/autostart.lua` | Two Brave PWA `--app-id=` values, `zen-browser --profile /home/linards/.config/zen-linards`, `/opt/pcloud/pcloud-drive.AppImage`, `solaar -w hide`. All host-installed paths |
@@ -131,6 +137,7 @@ These files hardcode `/home/linards`:
 .bashrc
 .gtkrc-2.0
 .config/hypr/conf/custom.conf
+.config/hypr/hypridle.conf
 .config/hypr/hyprpaper.conf
 .config/hypr/lua/autostart.lua
 .config/hypr/tools/hypr-state-dump
