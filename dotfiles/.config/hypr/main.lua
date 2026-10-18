@@ -41,11 +41,15 @@ require("lua.custom")
 -- in order to win. Workspace pinning is deliberately absent -- dropped at the
 -- user's request; see the spec.
 --
--- Pinned by DESCRIPTION, not by connector name: DP-MST recreates its connectors
--- on every topology change, so DP-5/DP-6 become DP-7/DP-8 and a name-based
--- layout silently stops applying. nwg-displays still regenerates monitors.lua
--- (name-based); it is no longer loaded. Revert with: require("monitors").
-require("lua.monitors_pin")
+-- nwg-displays' output is the only monitor layout in the sourced config. The
+-- desc:-keyed pins are NOT here: they live in ~/.config/hypr/monitor-pins.conf and
+-- are pushed imperatively by scripts/monitor-pin.py at Hyprland start and on every
+-- dock connect/disconnect. Reason: nwg-displays applies by writing monitors.conf
+-- and Hyprland auto-reloads on that write, so a pin inside the sourced config is
+-- re-applied by that reload and clobbers the GUI change instantly. Keeping the
+-- pins out of the config is what lets an nwg-displays override stick until the
+-- next dock event. The watcher is spawned from lua/autostart.lua.
+require("monitors")
 
 -- conf/cursor.conf :21 and conf/autostart.conf :43. Registered last because
 -- hl.on("hyprland.start", ...) is a callback -- where it is registered does not

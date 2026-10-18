@@ -103,6 +103,19 @@ hl.on("hyprland.start", function()
     -- they left behind. Mirror of conf/custom.conf; keep the two in sync.
     -- Revert by deleting this call.
     hl.exec_cmd("~/.config/hypr/scripts/wallpaper-boot.sh")
+
+    -- Per-dock monitor layout memory. Restores the layout last used with the current
+    -- set of monitors (keyed by their descriptions) at startup and on every
+    -- monitoradded/monitorremoved -- i.e. dock connect and disconnect -- and learns
+    -- the layout back once it has held still for 20s, so an nwg-displays change is
+    -- remembered rather than clobbered. A monitor set it has never seen falls back to
+    -- ~/.config/hypr/monitor-pins.conf.
+    -- This lives outside the sourced config on purpose: nwg-displays applies by
+    -- writing the generated monitors file and Hyprland auto-reloads on that write, so
+    -- anything sourced afterwards is re-applied by that reload and clobbers the change.
+    -- Store: ~/.local/state/hypr/monitor-profiles.json
+    -- Mirror of conf/custom.conf; keep the two in sync. Revert by deleting this call.
+    hl.exec_cmd("~/.config/hypr/scripts/monitor-pin.py watch")
 end)
 
 -- Reload half of conf/autostart.conf:41's `exec` directive (see header comment for full
