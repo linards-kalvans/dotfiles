@@ -72,7 +72,7 @@
   // Taskbar
   "wlr/taskbar": {
     "format": "{icon}",
-    "icon-size": 18,
+    "icon-size": 16,
     "tooltip-format": "{title}",
     "on-click": "activate",
     "on-click-middle": "close",
@@ -90,7 +90,6 @@
   },
   // Hyprland Window
   "hyprland/window": {
-    "max-length": 60,
     "rewrite": {
       "(.*) - Brave": "$1",
       "(.*) - Chromium": "$1",
@@ -99,7 +98,7 @@
       "(.*) Microsoft Teams": "$1"
     },
     "separate-outputs": true,
-    "max-length": 120
+    "max-length": 30
   },
   // ML4W Welcome App
   "custom/ml4w-welcome": {

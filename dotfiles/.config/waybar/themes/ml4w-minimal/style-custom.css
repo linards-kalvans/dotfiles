@@ -458,3 +458,27 @@ window#waybar.empty #window {
     -gtk-icon-effect: highlight;
     background-color: #eb4d4b;
 }
+
+/* -----------------------------------------------------
+ * Taskbar
+ * GTK3 has no max-width, so the taskbar cannot be hard
+ * capped; keep each button as narrow as the icon allows
+ * so many open windows still leave room for the right
+ * side modules.
+ * ----------------------------------------------------- */
+
+#taskbar {
+    padding: 0px;
+    margin: 0px;
+}
+
+#taskbar button {
+    padding: 0px 2px;
+    margin: 0px 1px;
+    min-width: 0px;
+    border-radius: 6px;
+}
+
+#taskbar button.active {
+    background-color: @workspacesbackground2;
+}
