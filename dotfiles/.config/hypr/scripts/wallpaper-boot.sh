@@ -148,8 +148,11 @@ while true; do
     }
 
     current=$(cat "$CACHE_FILE" 2>/dev/null)
+    # default.jpg is the FALLBACK copy of a wallpaper that is also in the set under
+    # its own name, so leaving it in the draw would show that image twice as often.
     next=$(find "$WALLPAPER_DIR" -maxdepth 1 -type f \
                 \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \) \
+                ! -name 'default.jpg' \
                 ! -wholename "$current" | shuf -n 1)
 
     [ -n "$next" ] || continue
