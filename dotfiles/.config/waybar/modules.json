@@ -7,9 +7,55 @@
 //
 {
   // Workspaces
+  // Workspaces via the ext_workspace_manager_v1 Wayland protocol.
+  //
+  // Replaces hyprland/workspaces, whose CLICK handling is unusable under a Lua
+  // Hyprland config: waybar 0.15.0 wires Workspace::handleClicked directly to the
+  // button, never consults "on-click", and emits the legacy IPC string
+  // `dispatch workspace N` itself. Hyprland parses dispatch arguments as Lua, so
+  // every click is rejected with a syntax error. That is compiled into waybar and
+  // cannot be fixed from configuration -- see Alexays/Waybar#5008.
+  //
+  // ext/workspaces talks the Wayland protocol directly and never touches Hyprland
+  // IPC, so it is unaffected. Both Hyprland 0.55.4 and waybar 0.15.0 implement it.
+  "ext/workspaces": {
+    // format "{name}" per waybar-ext-workspaces(5): this module matches
+    // format-icons by workspace NAME, with only "default" and "active" as
+    // special keys -- unlike hyprland/workspaces, which keys purely by state.
+    // Using "{icon}" with state-style keys rendered every button empty.
+    "format": "{name}",
+    "on-click": "activate",
+    // all-outputs shows every monitor's workspace group, and each group has its
+    // own active workspace -- so with 3 monitors, 3 buttons legitimately render
+    // as active. hyprland/workspaces collapsed that to one. Set false to show
+    // only the focused output's workspaces if the multi-active look is unwanted.
+    "all-outputs": true,
+    "active-only": false,
+    // sort-by-id sorts by the protocol's workspace id, which is not necessarily
+    // numeric here; sort-by-name sorts numerically when all names are numbers.
+    "sort-by-name": true,
+    "persistent-workspaces": {
+      "*": 3
+    }
+  },
+
   "hyprland/workspaces": {
-    "on-scroll-down": "hyprctl dispatch \"hl.dsp.focus({workspace = 'e+1'})\"",
-    "on-scroll-up":   "hyprctl dispatch \"hl.dsp.focus({workspace = 'e-1'})\"",
+    // Lua config (Hyprland 0.55.4): `hyprctl dispatch <args>` is parsed as the Lua
+    // expression `return hl.dispatch(<args>)`, so the old hyprlang word syntax
+    // ("workspace r-1") is a Lua syntax error. Scroll actions ARE shell commands
+    // run by waybar, so they are fixable here. Verified live 2026-09-15.
+    "on-scroll-up": "hyprctl dispatch 'hl.dsp.focus({ workspace = \"r-1\" })'",
+    "on-scroll-down": "hyprctl dispatch 'hl.dsp.focus({ workspace = \"r+1\" })'",
+    // NOT FIXABLE FROM CONFIG on waybar 0.15.0 -- left as-is deliberately.
+    // This key is inert for hyprland/workspaces: Workspace::handleClicked is wired
+    // directly to each button's signal_button_press_event and never consults
+    // on-click, and AModule applies no {id}/{name} substitution to an on-click
+    // command -- so no explicit command can be made per-workspace. The built-in
+    // click sends the literal legacy IPC string "dispatch workspace <id>" straight
+    // down Hyprland's socket, which a Lua config rejects. Clicking workspace
+    // buttons therefore cannot work until waybar emits Lua (or the ext/workspaces
+    // module is adopted, which uses the ext_workspace_v1 Wayland protocol instead
+    // of Hyprland IPC). See dispatch-compat-report.md.
     "on-click": "activate",
     "active-only": false,
     "all-outputs": true,
@@ -20,13 +66,13 @@
       "default": ""
     },
     "persistent-workspaces": {
-      "*": 5
+            "*": 3
     }
   },
   // Taskbar
   "wlr/taskbar": {
     "format": "{icon}",
-    "icon-size": 18,
+    "icon-size": 16,
     "tooltip-format": "{title}",
     "on-click": "activate",
     "on-click-middle": "close",
@@ -44,7 +90,6 @@
   },
   // Hyprland Window
   "hyprland/window": {
-    "max-length": 60,
     "rewrite": {
       "(.*) - Brave": "$1",
       "(.*) - Chromium": "$1",
@@ -52,14 +97,14 @@
       "(.*) - Outlook": "$1",
       "(.*) Microsoft Teams": "$1"
     },
-    "separate-outputs": true
+    "separate-outputs": true,
+    "max-length": 30
   },
   // ML4W Welcome App
   "custom/ml4w-welcome": {
-    "on-click": "qs ipc call sidebar toggle",
-    "on-click-right": "qs ipc call welcome toggle",
+    "on-click": "flatpak run com.ml4w.sidebar",
     "format": " ",
-    "tooltip-format": "Left: Open ML4W Sidebar\nRight: Open ML4W Welcome App"
+    "tooltip-format": "Open ML4W Sidebar App"
   },
   // Empty
   "custom/empty": {
@@ -68,46 +113,26 @@
   // Tools
   "custom/tools": {
     "format": "",
-    "tooltip-format": "Tools",
-    "on-scroll-up": "true",
-    "on-scroll-down": "true"
+    "tooltip-format": "Tools"
   },
-
-  // Now Playing
-  "custom/nowplaying": {
-    "exec": "~/.config/ml4w/scripts/ml4w-now-playing",
-    "format": "  {text}",
-    "return-type": "json",
-    "interval": 1,
-    "escape": true,
-    "hide-empty-text": false,
-    "on-click": "playerctl play-pause",
-    "on-click-right": "playerctl next",
-    "on-click-middle": "playerctl previous",
-    "tooltip-format": "Left: Play/Pause\nRight: Next\nMiddle: Previous"
-  },
-  
   // Cliphist
   "custom/cliphist": {
     "format": "",
-    "on-click": "sleep 0.1 && ~/.config/ml4w/scripts/ml4w-cliphist",
-    "on-click-right": "sleep 0.1 && ~/.config/ml4w/scripts/ml4w-cliphist d",
-    "on-click-middle": "sleep 0.1 && ~/.config/ml4w/scripts/ml4w-cliphist w",
-    "tooltip-format": "Left: Open clipboard Manager\nRight: Delete an entry\nMiddle: Clear list",
-    "on-scroll-up": "true",
-    "on-scroll-down": "true"
+    "on-click": "sleep 0.1 && ~/.config/ml4w/scripts/cliphist.sh",
+    "on-click-right": "sleep 0.1 && ~/.config/ml4w/scripts/cliphist.sh d",
+    "on-click-middle": "sleep 0.1 && ~/.config/ml4w/scripts/cliphist.sh w",
+    "tooltip-format": "Left: Open clipboard Manager\nRight: Delete an entry\nMiddle: Clear list"
   },
   // Updates Count
-  "custom/updates": {
+   "custom/updates": {
     "format": "  {}",
     "escape": true,
     "return-type": "json",
-    "exec": "~/.config/ml4w/scripts/ml4w-check-system-updates",
+    "exec": "~/.config/ml4w/scripts/updates.sh",
     "interval": 1800,
     "signal": 1,
     "hide-empty-text": true,
-    "on-click": "~/.config/ml4w/settings/installupdates.sh",
-    "on-click-right": "~/.config/ml4w/settings/software.sh"
+    "on-click": "~/.config/ml4w/settings/installupdates.sh"
   },
   // Wallpaper
   "custom/wallpaper": {
@@ -126,7 +151,7 @@
   "custom/settings": {
     "format": "",
     "on-click": "sleep 0.1 && com.ml4w.dotfilessettings",
-    "tooltip-format": "ML4W Settings"
+    "tooltip-format": "ML4W Dotfiles Settings"
   },
   // Keybindings
   "custom/keybindings": {
@@ -140,27 +165,34 @@
     "on-click": "qalculate-gtk",
     "tooltip-format": "Open calculator"
   },
+  // Windows VM
+  "custom/windowsvm": {
+    "format": "",
+    "on-click": "~/.config/ml4w/scripts/launchvm.sh",
+    "tooltip": false
+  },
   // Rofi Application Launcher
   "custom/appmenu": {
     // START APPS LABEL
     "format": "Apps",
     // END APPS LABEL
-    "on-click": "~/.config/ml4w/scripts/ml4w-launcher",
+    "on-click": "sleep 0.2;pkill rofi || rofi -show drun -replace",
     "on-click-right": "~/.config/hypr/scripts/keybindings.sh",
     "tooltip-format": "Left: Open the application launcher\nRight: Show all keybindings"
   },
   // Rofi Application Launcher
   "custom/appmenuicon": {
     "format": "",
-    "on-click": "sleep 0.2;~/.config/ml4w/scripts/ml4w-launcher",
+    "on-click": "sleep 0.2;rofi -show drun -replace",
     "on-click-right": "~/.config/hypr/scripts/keybindings.sh",
     "tooltip-format": "Left: Open the application launcher\nRight: Show all keybindings"
   },
   // Power Menu
   "custom/exit": {
     "format": "",
-    "on-click": "ml4w-powermenu toggle",
-    "tooltip-format": "Open Power Menu"
+    "on-click": "~/.config/ml4w/scripts/wlogout.sh",
+    "on-click-right": "hyprlock",
+    "tooltip-format": "Left: Power menu\nRight: Lock screen"
   },
   // SwayNC
   "custom/notification": {
@@ -183,13 +215,12 @@
     "on-click-right": "swaync-client -d -sw",
     "escape": true
   },
-  // Hyprsunset
+  // Hyprshade
   "custom/hyprshade": {
     "format": "",
     "tooltip-format": "Toggle Screen Shader",
-    "on-click": "sleep 0.5; ~/.config/ml4w/scripts/ml4w-toggle-hyprsunset",
-    "on-scroll-up": "true",
-    "on-scroll-down": "true"
+    "on-click": "sleep 0.5; ~/.config/hypr/scripts/hyprshade.sh",
+    "on-click-right": "sleep 0.5; ~/.config/hypr/scripts/hyprshade.sh rofi"
   },
   // Hypridle inhibitor
   "custom/hypridle": {
@@ -199,9 +230,7 @@
     "exec-on-event": true,
     "interval": 60,
     "exec": "~/.config/hypr/scripts/hypridle.sh status",
-    "on-click": "~/.config/hypr/scripts/hypridle.sh toggle",
-    "on-scroll-up": "true",
-    "on-scroll-down": "true"
+    "on-click": "~/.config/hypr/scripts/hypridle.sh toggle"
   },
   // Keyboard State
   "keyboard-state": {
@@ -211,9 +240,7 @@
     "format-icons": {
       "locked": "",
       "unlocked": ""
-    },
-    "on-scroll-up": "true",
-    "on-scroll-down": "true"
+    }
   },
   // System tray
   "tray": {
@@ -222,45 +249,36 @@
   },
   // Clock
   "clock": {
-    "format": "{:%H:%M %a}",
-    "on-click": "qs ipc call calendar toggle",
+    "format": "{:%Od.%Om.%Y, %H:%M:%S}",
+    "on-click": "flatpak run com.ml4w.calendar",
     "timezone": "",
-    "tooltip": false
+    "tooltip": false,
+    "interval": 1
   },
   // System
   "custom/system": {
     "format": "",
-    "tooltip": false,
-    "on-scroll-up": "true",
-    "on-scroll-down": "true"
+    "tooltip": false
   },
   // CPU
   "cpu": {
     "format": "/ C {usage}% ",
-    "on-click": "~/.config/ml4w/settings/system-monitor.sh",
-    "on-scroll-up": "true",
-    "on-scroll-down": "true"
+    "on-click": "~/.config/ml4w/settings/system-monitor.sh"
   },
   // Memory
   "memory": {
     "format": "/ M {}% ",
-    "on-click": "~/.config/ml4w/settings/system-monitor.sh",
-    "on-scroll-up": "true",
-    "on-scroll-down": "true"
+    "on-click": "~/.config/ml4w/settings/system-monitor.sh"
   },
   // Harddisc space used
   "disk": {
     "interval": 30,
     "format": "D {percentage_used}% ",
     "path": "/",
-    "on-click": "~/.config/ml4w/settings/system-monitor.sh",
-    "on-scroll-up": "true",
-    "on-scroll-down": "true"
+    "on-click": "~/.config/ml4w/settings/system-monitor.sh"
   },
   "hyprland/language": {
-    "format": "/ K {short}",
-    "on-scroll-up": "true",
-    "on-scroll-down": "true"
+    "format": "/ K {short}"
   },
   // Group Hardware
   "group/hardware": {
@@ -319,16 +337,17 @@
   // Network
   "network": {
     "format": "{ifname}",
-    "format-wifi": " {signalStrength}%",
-    "format-ethernet": "  {ifname}",
+    "format-wifi": " {signalStrength}%  ⇧ {bandwidthUpBytes} ⇩ {bandwidthDownBytes}",
+    "format-ethernet": "  ⇧ {bandwidthUpBytes} ⇩ {bandwidthDownBytes}",
     "format-disconnected": "Disconnected ⚠",
-    "tooltip-format": " {ifname} via {gwaddri}",
+    "tooltip-format": " {ifname} via {gwaddri}",
     "tooltip-format-wifi": "  {ifname} @ {essid}\nIP: {ipaddr}\nStrength: {signalStrength}%\nFreq: {frequency}MHz\nUp: {bandwidthUpBits} Down: {bandwidthDownBits}",
-    "tooltip-format-ethernet": " {ifname}\nIP: {ipaddr}\n up: {bandwidthUpBits} down: {bandwidthDownBits}",
+    "tooltip-format-ethernet": " {ifname}\nIP: {ipaddr}\n up: {bandwidthUpBytes} down: {bandwidthDownBytes}",
     "tooltip-format-disconnected": "Disconnected",
-    "max-length": 50,
+    "max-length": 90,
     "on-click": "~/.config/ml4w/settings/networkmanager.sh",
-    "on-click-right": "~/.config/ml4w/scripts/ml4w-toggle-nmapplet toggle",
+    "on-click-right": "~/.config/ml4w/scripts/nm-applet.sh toggle",
+    "interval": 1
   },
   // Battery
   "battery": {
@@ -343,7 +362,7 @@
     "format-plugged": "  {capacity}%",
     "format-alt": "{icon}  {time}",
     // "format-good": "", // An empty format will hide the module
-    "format-full": "  {capacity}%",
+    // "format-full": "",
     "format-icons": [
       " ",
       " ",
@@ -362,9 +381,7 @@
       "performance": "",
       "balanced": "",
       "power-saver": ""
-    },
-    "on-scroll-up": "true",
-    "on-scroll-down": "true"
+    }
   },
   // Pulseaudio
   "pulseaudio": {
@@ -392,15 +409,26 @@
   },
   // Bluetooth
   "bluetooth": {
-  "format": " {status}",
-  "format-disabled": "",
-  "format-off": "",
-  "interval": 30,
-  "on-click": "sleep 0.1 && ~/.config/ml4w/settings/bluetooth.sh",
-  "tooltip-format-connected": "Connected devices: {num_connections} connected\n\n{device_enumerate}",
-  "tooltip-format-enumerate-connected": "{device_alias}",
-  "tooltip-format-enumerate-connected-battery": "{device_alias}\t| Battery life: {device_battery_percentage}%",
-  "format-no-controller": ""
+    "format": "",
+    "format-disabled": "",
+    "format-off": "",
+    "interval": 30,
+    "on-click": "sleep 0.1 && ~/.config/ml4w/settings/bluetooth.sh",
+    "format-no-controller": "",
+    "format-connected-battery": " {icon} {device_battery_percentage}%",
+    "format-device-preference": ["Oleap Pilot", "HP 435 Wireless Mouse", "MX KEYS S"],
+    "tooltip-format-connected-battery": "{device_enumerate}",
+    "tooltip-format-enumerate-connected-battery": "{device_alias} {icon} {device_battery_percentage}%",
+    "format-icons": [
+      " ",
+      " ",
+      " ",
+      " ",
+      " "
+    ]
+//    "format-icons": {
+//        "HP 435 Wireless Mouse": ""
+//    }
   },
   // Other
   "user": {

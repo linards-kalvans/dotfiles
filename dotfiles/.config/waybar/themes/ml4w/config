@@ -14,14 +14,15 @@
     // Modules Left
     "modules-left": [
         "custom/appmenu",
-        //"wlr/taskbar",
+        "group/links",
+        "wlr/taskbar",
         //"group/quicklinks",
         "hyprland/window",
         "custom/empty"
     ],
     // Modules Center
     "modules-center": [
-        "hyprland/workspaces"
+        "ext/workspaces"
     ],
     // Modules Right    
     "modules-right": [

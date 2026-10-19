@@ -114,3 +114,5 @@ docs/.vitepress/cache
 
 # devicon
 docs/.vitepress/devicon
+# carried here for export only; the original referenced an internal host
+dotfiles/.config/gtk-3.0/bookmarks

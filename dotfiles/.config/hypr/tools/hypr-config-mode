@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# Switch the Hyprland config language between hyprlang (.conf) and Lua (.lua).
+#
+# Hyprland reads hyprland.lua ONCE at startup. If it exists, hyprland.conf is
+# ignored entirely. The two formats cannot be mixed in one session, and
+# `hyprctl reload` does NOT switch between them — a restart is required.
+set -euo pipefail
+
+HYPR="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
+LINK="$HYPR/hyprland.lua"
+TARGET="main.lua"
+
+die() { echo "hypr-config-mode: $*" >&2; exit 1; }
+
+current_session() {
+    # Prints two lines: the resolved value (lua|conf|unknown), then a
+    # one-line reason (empty unless the value is "unknown"). Callers should
+    # capture both, e.g. with `mapfile`.
+    #
+    # Preferred: ask hyprctl directly, in case a future Hyprland version
+    # exposes the loaded config path here.
+    #
+    # As of Hyprland 0.55.4, `hyprctl -j version` has NO field naming the
+    # loaded config file — verified by inspecting its full JSON output, whose
+    # keys are only: branch, commit, version, dirty, commit_message,
+    # commit_date, tag, commits, build*/system* library versions, abiHash,
+    # flags. `.["config-file"]` (the field this script originally guessed)
+    # does not exist, so it always resolves to empty below.
+    #
+    # Fallback: Hyprland's ConfigManager logs which config format won, e.g.:
+    #   DEBUG ]: [cfg] Lua config not found, using legacy config at /path/hyprland.conf
+    #   DEBUG ]: [cfg] Using lua config found at /path/hyprland.lua
+    # This pair is the ONLY signal verified against real logs on this build.
+    # Do NOT reintroduce either of these, both tried and found wanting by
+    # direct inspection of six real hyprland.log files (three conf, three
+    # lua) on this host:
+    #   - A "config-file" field in `hyprctl -j version`: absent from the JSON
+    #     entirely (see above).
+    #   - A "Using config: <path>" log line: exists for the legacy/.conf
+    #     branch only. A Lua-loaded session's log never prints it, so
+    #     grepping for it makes every Lua session silently report "unknown"
+    #     — that was fix round 1's bug, invisible until an actual Lua-mode
+    #     restart exposed it.
+    # Read the CURRENTLY RUNNING instance's log, identified via
+    # $HYPRLAND_INSTANCE_SIGNATURE — the standard env var Hyprland sets
+    # naming its own runtime directory. Take the LAST matching line (a
+    # long-lived log could in principle carry a stale line from an earlier
+    # parse; the final decision is what's live). Key off which of the two
+    # exact phrases matched ("lua" vs "legacy") rather than a path suffix:
+    # the decision phrase states outright which language won, whereas the
+    # preceding "[cfg] Regular config at <path>" line (present for both
+    # branches, differing only in the path's extension) is a strictly weaker
+    # signal that depends on the resolved path happening to end the way we
+    # expect. Not an inference from timestamps either (comparing process
+    # start time to the symlink's mtime is NOT used here — it cannot
+    # distinguish "loaded lua at boot" from "conf existed all along").
+    local cfg
+    cfg=$(hyprctl -j version 2>/dev/null | jq -r '.["config-file"] // empty' 2>/dev/null || true)
+
+    local reason=""
+    if [[ -z "$cfg" ]]; then
+        local sig="${HYPRLAND_INSTANCE_SIGNATURE:-}"
+        if [[ -z "$sig" ]]; then
+            # $HYPRLAND_INSTANCE_SIGNATURE is unset — e.g. a bare TTY after a
+            # failed restart, precisely the moment this must not lie. If
+            # exactly one Hyprland instance is running, there is no
+            # ambiguity and it is safe to use it. If more than one instance
+            # is running, we have no way from this shell to know which one
+            # the caller means — do NOT guess `.[0]`; report unknown with a
+            # reason instead.
+            local count
+            count=$(hyprctl -j instances 2>/dev/null | jq -r 'length' 2>/dev/null || true)
+            [[ "$count" =~ ^[0-9]+$ ]] || count=0
+            if [[ "$count" -eq 1 ]]; then
+                sig=$(hyprctl -j instances 2>/dev/null | jq -r '.[0].instance // empty' 2>/dev/null || true)
+            elif [[ "$count" -gt 1 ]]; then
+                reason="\$HYPRLAND_INSTANCE_SIGNATURE is unset and $count Hyprland instances are running — cannot tell which one this shell belongs to"
+            fi
+        fi
+
+        if [[ -n "$sig" ]]; then
+            local runtime="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+            local log="$runtime/hypr/$sig/hyprland.log"
+            if [[ -r "$log" ]]; then
+                local decision
+                decision=$(grep -aE '\[cfg\] (Using lua config found|Lua config not found, using legacy config)' "$log" 2>/dev/null | tail -1)
+                if [[ "$decision" == *"Using lua config found"* ]]; then
+                    cfg="hyprland.lua"
+                elif [[ -n "$decision" ]]; then
+                    cfg="hyprland.conf"
+                fi
+            fi
+        fi
+    fi
+
+    if [[ -z "$cfg" ]]; then
+        [[ -n "$reason" ]] || reason="hyprctl exposes no config-file field, and no readable hyprland.log with a config-format decision line was found"
+        echo "unknown"
+        echo "$reason"
+    elif [[ "$cfg" == *.lua ]]; then
+        echo "lua"
+        echo ""
+    else
+        echo "conf"
+        echo ""
+    fi
+}
+
+next_startup() {
+    if [[ -L "$LINK" || -f "$LINK" ]]; then echo "lua"; else echo "conf"; fi
+}
+
+case "${1:-status}" in
+  lua)
+    [[ -f "$HYPR/$TARGET" ]] || die "$HYPR/$TARGET does not exist — nothing to link to"
+    if [[ -f "$LINK" && ! -L "$LINK" ]]; then
+        die "$LINK is a regular file, not our symlink — refusing to clobber it"
+    fi
+    ln -sfn "$TARGET" "$LINK"
+    echo "next-startup: lua  (restart Hyprland to apply)"
+    ;;
+  conf)
+    if [[ -f "$LINK" && ! -L "$LINK" ]]; then
+        die "$LINK is a regular file, not our symlink — move it aside manually"
+    fi
+    rm -f "$LINK"
+    echo "next-startup: conf  (restart Hyprland to apply)"
+    ;;
+  status)
+    ns=$(next_startup)
+    mapfile -t cs_out < <(current_session)
+    cs="${cs_out[0]:-unknown}"
+    cs_reason="${cs_out[1]:-}"
+    echo "next-startup: $ns"
+    echo "current-session: $cs"
+    if [[ "$cs" == "unknown" ]]; then
+        echo "note: current-session could not be determined — $cs_reason"
+    elif [[ "$ns" != "$cs" ]]; then
+        echo "note: the pending config differs from what is currently loaded — restart Hyprland to apply it"
+    fi
+    ;;
+  *)
+    die "usage: hypr-config-mode {lua|conf|status}"
+    ;;
+esac

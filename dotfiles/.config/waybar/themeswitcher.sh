@@ -46,12 +46,10 @@ for value in $options; do
 done
 
 # -----------------------------------------------------
-# Show dialog
+# Show rofi dialog
 # -----------------------------------------------------
 listNames=${listNames::-2}
-
-choice=$(echo -e "$listNames" | $HOME/.config/ml4w/scripts/ml4w-launcher dmenu --index -p "Themes" --rofi-args "-no-show-icons -width 30" --walker-args "--height 400")
-
+choice=$(echo -e "$listNames" | rofi -dmenu -replace -i -config ~/.config/rofi/config-themes.rasi -no-show-icons -width 30 -p "Themes" -format i)
 IFS="~"
 input=$listNames2
 read -ra array <<<"$input"

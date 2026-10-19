@@ -28,3 +28,15 @@
     "text" : "Power Off",
     "keybind" : "s"
 }
+{
+    "label" : "hibernate",
+    "action" : "~/.config/hypr/scripts/power.sh hibernate",
+    "text" : "Hibernate",
+    "keybind" : "h"
+}
+{
+    "label" : "hybrid-sleep",
+    "action" : "~/.config/hypr/scripts/power.sh hybrid-sleep",
+    "text" : "Hybrid Sleep",
+    "keybind" : "y"
+}

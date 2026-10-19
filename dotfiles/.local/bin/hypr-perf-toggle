@@ -1,0 +1,44 @@
+#!/bin/bash
+# Toggle Hyprland performance mode for DisplayLink docking.
+# Disables blur, shadows, and animations while keeping inactive opacity.
+
+STATE_FILE="/tmp/hypr-perf-mode"
+
+enable_perf() {
+    hyprctl keyword decoration:blur:enabled false
+    hyprctl keyword decoration:shadow:enabled false
+    hyprctl keyword animations:enabled false
+    touch "$STATE_FILE"
+    echo "Performance mode ON — blur, shadows, animations disabled"
+}
+
+disable_perf() {
+    hyprctl keyword decoration:blur:enabled true
+    hyprctl keyword decoration:shadow:enabled true
+    hyprctl keyword animations:enabled true
+    rm -f "$STATE_FILE"
+    echo "Performance mode OFF — full effects restored"
+}
+
+case "${1:-toggle}" in
+    on)      enable_perf ;;
+    off)     disable_perf ;;
+    toggle)
+        if [ -f "$STATE_FILE" ]; then
+            disable_perf
+        else
+            enable_perf
+        fi
+        ;;
+    status)
+        if [ -f "$STATE_FILE" ]; then
+            echo "Performance mode is ON"
+        else
+            echo "Performance mode is OFF"
+        fi
+        ;;
+    *)
+        echo "Usage: hypr-perf-toggle [on|off|toggle|status]"
+        exit 1
+        ;;
+esac

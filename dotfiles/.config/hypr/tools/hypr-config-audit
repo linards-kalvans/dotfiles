@@ -1,0 +1,403 @@
+#!/usr/bin/env python3
+"""Completeness audit: every directive in the hyprlang tree must have a Lua counterpart.
+
+Walks the transitive `source =` closure from hyprland.conf, counts directives by
+kind, then counts the corresponding hl.* calls across the Lua tree and reports
+any shortfall.
+
+This exists because four config files were found orphaned during the migration by
+ad-hoc inspection -- workspaces.conf, keyboard.conf, ml4w.conf and hyprland.conf's
+own inline directives. Counting is not proof of correctness, but it makes the
+"silently dropped an entire file" class of failure impossible to miss.
+
+Usage: hypr-config-audit [--json]
+Exit 0 if every kind reconciles, 1 otherwise.
+"""
+import os, re, sys, json, collections, subprocess
+
+H = os.path.expanduser("~/.config/hypr")
+
+def expand(p):
+    p = p.strip().replace("$HOME", os.path.expanduser("~"))
+    return os.path.realpath(os.path.expanduser(p))
+
+def closure(root):
+    seen, out = set(), []
+    def walk(path):
+        rp = expand(path)
+        if rp in seen or not os.path.isfile(rp):
+            return
+        seen.add(rp); out.append(rp)
+        for line in open(rp, errors="replace"):
+            st = line.strip()
+            if st.startswith("#"):
+                continue
+            m = re.match(r"^source\s*=\s*(.+?)\s*(?:#.*)?$", st)
+            if m:
+                walk(m.group(1))
+    walk(root)
+    return out
+
+# hyprlang directive -> the hl.* call that must carry it
+HYPRLANG = [
+    (r"^bind[a-z]*\s*=",        "bind"),
+    (r"^unbind\s*=",            "unbind"),
+    (r"^exec-once\s*=",         "exec"),
+    (r"^exec\s*=",              "exec"),
+    (r"^env\s*=",               "env"),
+    (r"^monitor\s*=",           "monitor"),
+    (r"^workspace\s*=",         "workspace_rule"),
+    (r"^windowrulev2\s*=",      "window_rule"),
+    (r"^windowrule\s*=",        "window_rule"),
+    (r"^windowrule\s*\{",       "window_rule"),
+    (r"^layerrule2?\s*=",       "layer_rule"),
+    (r"^animation\s*=",         "animation"),
+    (r"^bezier\s*=",            "curve"),
+    (r"^gesture\s*=",           "gesture"),
+    (r"^permission\s*=",        "permission"),
+]
+LUA = {
+    "bind":           r"\bhl\.bind\s*\(",
+    "unbind":         r"\bhl\.unbind\s*\(",
+    "exec":           r"\bhl\.exec_cmd\s*\(",
+    "env":            r"\bhl\.env\s*\(",
+    "monitor":        r"\bhl\.monitor\s*\(",
+    "workspace_rule": r"\bhl\.workspace_rule\s*\(",
+    "window_rule":    r"\bhl\.window_rule\s*\(",
+    "layer_rule":     r"\bhl\.layer_rule\s*\(",
+    "animation":      r"\bhl\.animation\s*\(",
+    "curve":          r"\bhl\.curve\s*\(",
+    "gesture":        r"\bhl\.gesture\s*\(",
+    "permission":     r"\bhl\.permission\s*\(",
+}
+# Kinds the user deliberately dropped: counted in hyprlang, expected 0 in Lua.
+DROPPED = {"workspace_rule": "workspace-to-monitor pinning dropped at user request (2026-09-11)"}
+
+# Deliberate non-1:1 mappings. Without these, a surplus from one directive can
+# silently cancel a shortfall from another and the audit reports a false PASS --
+# which is exactly what happened when autostart.conf:41's `exec` was given two
+# call-sites while hyprland.conf:64's exec-once was still unported, and the row
+# read "21 vs 21 ok". Every entry must say WHY, and the expected Lua count is
+# hyprlang + delta. Anything else fails.
+MAPPING_DELTA = {
+    "bind": (
+        -1,
+        "conf/keybindings/default.conf:133 binds XF86Lock, which is not a real keysym -- it does "
+        "not appear in /usr/include/X11/XF86keysym.h at all. hyprlang stored the bind with "
+        "keycode=0 (present in the baseline dump, unable to fire); Lua rejects it outright and "
+        "raised a config-error overlay at the first flip. Deliberately dropped from the Lua tree: "
+        "behaviour is identical (no key triggers it either way) and SUPER+L already locks.",
+    ),
+    "exec": (
+        1,
+        "autostart.conf:41 `exec =` re-runs on config reload, unlike exec-once. "
+        "It is reproduced as two call-sites -- hl.on('hyprland.start') and "
+        "hl.on('config.reloaded') -- so one hyprlang directive yields two hl.exec_cmd calls.",
+    ),
+}
+
+def count_hyprlang(files):
+    c = collections.Counter(); where = collections.defaultdict(list)
+    for f in files:
+        for i, line in enumerate(open(f, errors="replace"), 1):
+            st = line.strip()
+            if not st or st.startswith("#"):
+                continue
+            for rx, kind in HYPRLANG:
+                if re.match(rx, st):
+                    c[kind] += 1
+                    where[kind].append(f"{os.path.basename(f)}:{i}")
+                    break
+    return c, where
+
+# ML4W selects one variation per group through nine one-line pointer files, and
+# the hyprlang closure therefore contains ONLY the active variation. The Lua tree
+# holds every variation side by side, so counting all of them compares an
+# active-only left side against an all-variations right side -- every row reads
+# EXTRA, and a surplus from one group can mask a real drop in another. Resolve the
+# same pointers here so both sides describe the same configuration.
+POINTER_TO_GROUP = {
+    "monitor.conf": "monitors",         "environment.conf": "environments",
+    "window.conf": "windows",           "decoration.conf": "decorations",
+    "layout.conf": "layouts",           "workspace.conf": "workspaces",
+    "keybinding.conf": "keybindings",   "windowrule.conf": "windowrules",
+    "animation.conf": "animations",
+}
+
+def active_variations():
+    """group -> variation name currently selected by its .conf pointer."""
+    active = {}
+    for pointer, group in POINTER_TO_GROUP.items():
+        src = os.path.join(H, "conf", pointer)
+        if not os.path.isfile(src):
+            continue
+        for line in open(src, errors="replace"):
+            m = re.match(r"^\s*source\s*=.*/([^/]+)\.conf\s*$", line.strip())
+            if m:
+                active[group] = m.group(1)
+                break
+    return active
+
+def lua_files():
+    """Lua modules that a Hyprland start would actually load, mirroring the
+    hyprlang closure: every non-group module, plus only the ACTIVE variation
+    from each group directory."""
+    active = active_variations()
+    out, skipped = [], []
+    for base, _, names in os.walk(H):
+        if os.sep + "conf" in base:      # skip the hyprlang tree
+            continue
+        if os.sep + "tools" in base:     # our own scripts, not config
+            continue
+        group = os.path.basename(base)
+        for n in names:
+            if not n.endswith(".lua"):
+                continue
+            full = os.path.join(base, n)
+            # hyprland.lua is the ENTRY POINT -- a symlink to main.lua created by
+            # hypr-config-mode. It is the root of the require graph, not a module
+            # within it, so counting it makes the reachability check report the
+            # entry point as unreachable from itself.
+            if n == "hyprland.lua" and base == H:
+                continue
+            if group in active and n[:-4] != active[group]:
+                skipped.append(full)     # inactive variation -- not loaded
+                continue
+            out.append(full)
+    return sorted(out), sorted(skipped)
+
+def count_lua(files):
+    c = collections.Counter()
+    for f in files:
+        src = open(f, errors="replace").read()
+        src = re.sub(r"--\[\[.*?\]\]", "", src, flags=re.S)
+        src = re.sub(r"^\s*--.*$", "", src, flags=re.M)
+        for kind, rx in LUA.items():
+            c[kind] += len(re.findall(rx, src))
+    return c
+
+# hyprland.conf declares `$color8 = $primary` and `$color11 = $on_surface`, and 13
+# files under conf/windows/ consume them. The converter never walks hyprland.conf,
+# so it emits BARE GLOBALS -- e.g.
+#     active_border = color8 .. " " .. on_primary .. " 90deg"
+# -- which are nil at runtime. It reports 100% coverage and exit 0 on those files,
+# so nothing else in the toolchain catches it; the failure lands at Hyprland
+# startup as a nil border or a gradient-parse error. Two distinct defects:
+#   1. a bare alias identifier that was never rewritten to the colors.* form
+#   2. a concat chain where Hyprland wants a gradient TABLE
+#      ({ colors = {...}, angle = ... }), so naive name substitution is not enough
+ALIAS_IDENTS = ("color8", "color11", "on_primary", "on_surface", "primary")
+
+def check_colour_contract(lua_paths):
+    bare, concat = [], []
+    for f in lua_paths:
+        src = open(f, errors="replace").read()
+        src = re.sub(r"--\[\[.*?\]\]", "", src, flags=re.S)
+        src = re.sub(r"^\s*--.*$", "", src, flags=re.M)
+        for i, line in enumerate(src.splitlines(), 1):
+            for ident in ALIAS_IDENTS:
+                # A table KEY (`color8 = "primary"`) is a declaration, not a use --
+                # that is exactly how toplevel.lua documents the contract.
+                if re.match(r"\s*" + ident + r"\s*=\s*[\"']", line):
+                    continue
+                # bare identifier, not reached through a table (colors.X / M.X / .X)
+                if re.search(r"(?<![.\w\"'])" + ident + r"\b", line):
+                    bare.append((f, i, ident, line.strip()[:72]))
+                    break
+            if re.search(r"(active_border|inactive_border)\s*=.*\.\.", line):
+                concat.append((f, i, line.strip()[:72]))
+    return bare, concat
+
+STUB = "/usr/share/hypr/stubs/hl.meta.lua"
+TYPECHECK = os.path.join(H, "tools", "hypr-lua-typecheck.lua")
+
+def declared_types():
+    """config key -> set of Lua types the API accepts, from HL.ConfigValueTypes."""
+    types, inside = {}, False
+    for line in open(STUB, errors="replace"):
+        if "---@class HL.ConfigValueTypes" in line:
+            inside = True; continue
+        if inside:
+            if line.startswith("local "):
+                break
+            m = re.match(r"---@field\s+\['([^']+)'\]\s+(.+?)\s*$", line)
+            if m:
+                key, decl = m.group(1), m.group(2)
+                accepted = set()
+                for t in decl.split("|"):
+                    t = t.strip()
+                    accepted.add({"integer": "number", "float": "number"}.get(t, t))
+                types[key] = accepted
+    return types
+
+def check_value_types(all_lua):
+    """Every module -- active AND inactive -- loaded under a fake hl, with each
+    emitted config value's Lua type compared against HL.ConfigValueTypes.
+
+    Inactive variations are included deliberately: selecting one in the ML4W
+    Settings app is exactly when a wrongly-typed value bites, and a check that
+    only covered the active set would have missed all seven instances of
+    decoration.shadow.color being emitted as a number instead of a string."""
+    declared = declared_types()
+    bad, unreadable = [], []
+    if not os.path.isfile(TYPECHECK):
+        return bad, unreadable, 0
+    checked = 0
+    for f in all_lua:
+        if os.path.basename(f) in ("colors.lua", "probe.lua"):
+            continue
+        r = subprocess.run(["lua", TYPECHECK, f], capture_output=True, text=True,
+                           stdin=subprocess.DEVNULL, timeout=10)
+        if r.returncode != 0:
+            unreadable.append((f, r.stderr.strip().replace("\t", " ")[:90]))
+            continue
+        checked += 1
+        for line in r.stdout.splitlines():
+            if "\t" not in line:
+                continue
+            key, got = line.split("\t", 1)
+            want = declared.get(key)
+            if want and got not in want:
+                bad.append((f, key, got, "|".join(sorted(want))))
+    return bad, unreadable, checked
+
+def require_closure():
+    """Files reachable from main.lua by following require() transitively.
+
+    The count checks above prove a directive EXISTS somewhere in the tree. They
+    cannot prove Hyprland will load it. Task 6's review found the gap: the only
+    require("monitors") in the tree lives inside lua/monitors/nwg-displays.lua,
+    which the pointer resolution classifies as an inactive variation and skips --
+    so if main.lua omitted require("monitors"), the real three-monitor layout
+    would silently vanish while every row still read ok.
+
+    Returns (reachable set, missing requires). Empty set if main.lua is absent."""
+    main = os.path.join(H, "main.lua")
+    if not os.path.isfile(main):
+        return set(), []
+    seen, missing, stack = set(), [], [main]
+    while stack:
+        f = stack.pop()
+        if f in seen or not os.path.isfile(f):
+            continue
+        seen.add(f)
+        src = re.sub(r"^\s*--.*$", "", open(f, errors="replace").read(), flags=re.M)
+        # Match both require("x") and pcall(require, "x") -- the Task 3 probe uses
+        # the latter, and a regex that only knew the direct form reported every
+        # module unreachable.
+        for mod in re.findall(r'require\s*[(,]\s*["\']([^"\']+)["\']', src):
+            cand = os.path.join(H, mod.replace(".", os.sep) + ".lua")
+            if os.path.isfile(cand):
+                stack.append(cand)
+            else:
+                missing.append((os.path.relpath(f, H), mod))
+    return seen, missing
+
+def main():
+    conf_files = closure(os.path.join(H, "hyprland.conf"))
+    lfiles, inactive = lua_files()
+    hc, where = count_hyprlang(conf_files)
+    lc = count_lua(lfiles)
+
+    rows, ok = [], True
+    for kind in sorted(set(hc) | set(LUA)):
+        want, got = hc.get(kind, 0), lc.get(kind, 0)
+        delta, why = MAPPING_DELTA.get(kind, (0, None))
+        expect = want + delta
+        if kind in DROPPED:
+            status = "DROPPED" if got == 0 else "UNEXPECTED"
+            if got:
+                ok = False
+        elif got == expect:
+            status = "ok" if not delta else "ok (+%d mapped)" % delta
+        elif got < expect:
+            status = "MISSING %d" % (expect - got); ok = False
+        else:
+            # A surplus is never benign: it is either an invented call or an
+            # undocumented 1:N mapping that could be hiding a shortfall elsewhere.
+            status = "EXTRA %d (undocumented -- add to MAPPING_DELTA)" % (got - expect); ok = False
+        rows.append((kind, want, got, expect, status, why))
+
+    if "--json" in sys.argv:
+        print(json.dumps({
+            "conf_files": len(conf_files), "lua_files": len(lfiles),
+            "inactive_variations": len(inactive),
+            "rows": [{"kind": k, "hyprlang": w, "lua": g, "expected_lua": e,
+                      "status": s, "mapping_note": n} for k, w, g, e, s, n in rows],
+            "ok": ok}, indent=2))
+        return 0 if ok else 1
+
+    print(f"hyprlang closure: {len(conf_files)} files   "
+          f"Lua active: {len(lfiles)} files ({len(inactive)} inactive variations not counted)\n")
+    print(f"{'directive':<18}{'hyprlang':>9}{'want':>6}{'lua':>6}   status")
+    print("-" * 62)
+    for k, w, g, e, s, n in rows:
+        if w == 0 and g == 0:
+            continue
+        print(f"{k:<18}{w:>9}{e:>6}{g:>6}   {s}")
+        if s.startswith("MISSING"):
+            miss = where[k][:6]
+            print(f"{'':<18}{'':>21}   sources: {', '.join(miss)}"
+                  + (" ..." if len(where[k]) > 6 else ""))
+        if s == "DROPPED":
+            print(f"{'':<18}{'':>21}   {DROPPED[k]}")
+        if n:
+            print(f"{'':<18}{'':>21}   note: {n}")
+    bare, concat = check_colour_contract(lfiles)
+    print()
+    print("colour-alias contract")
+    print("-" * 62)
+    if not bare and not concat:
+        print("  ok — no bare alias identifiers, no border concat chains")
+    for f, i, ident, txt in bare:
+        ok = False
+        print(f"  BARE IDENT  {os.path.basename(f)}:{i}  `{ident}` -> use the colors.* table")
+        print(f"              {txt}")
+    for f, i, txt in concat:
+        ok = False
+        print(f"  CONCAT      {os.path.basename(f)}:{i}  border built by concatenation;")
+        print(f"              Hyprland wants a gradient table {{ colors = {{...}}, angle = ... }}")
+        print(f"              {txt}")
+
+    reachable, missing_req = require_closure()
+    all_lua = sorted(lfiles + inactive)
+    bad_types, unreadable, checked = check_value_types(all_lua)
+    print()
+    print(f"config value types ({checked} modules loaded, active and inactive)")
+    print("-" * 62)
+    if not bad_types and not unreadable:
+        print("  ok — every emitted value matches HL.ConfigValueTypes")
+    for f, key, got, want in bad_types:
+        ok = False
+        rel = os.path.relpath(f, H)
+        print(f"  TYPE  {rel}: {key} is {got}, API declares {want}")
+    for f, err in unreadable:
+        ok = False
+        print(f"  LOAD  {os.path.relpath(f, H)}: {err}")
+
+    print()
+    print("require reachability from main.lua")
+    print("-" * 62)
+    probe = os.path.join(H, "lua", "probe.lua") in reachable
+    if not reachable:
+        print("  SKIP — no main.lua yet (Task 11 writes it)")
+    elif probe:
+        print(f"  SKIP — main.lua is still the Task 3 probe build "
+              f"({len(reachable)} files reachable); re-check after Task 11")
+    else:
+        unreached = [f for f in lfiles if f not in reachable]
+        if not unreached and not missing_req:
+            print(f"  ok — all {len(lfiles)} active modules reachable from main.lua")
+        for f in sorted(unreached):
+            ok = False
+            print(f"  UNREACHED  {os.path.relpath(f, H)} — on disk but never required")
+    for src, mod in missing_req:
+        ok = False
+        print(f"  BROKEN     {src} requires '{mod}', which does not resolve to a file")
+
+    print()
+    print("AUDIT PASS — every directive kind reconciles, colour contract held" if ok
+          else "AUDIT FAIL — see rows above")
+    return 0 if ok else 1
+
+sys.exit(main())
